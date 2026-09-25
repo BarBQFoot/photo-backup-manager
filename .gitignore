@@ -1,0 +1,21 @@
+# Wails build
+build/bin/
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Nuxt
+frontend/.nuxt/
+frontend/.output/
+frontend/dist/
+
+# Environment / API keys
+.env
+.env.*
+
+# Database
+data/
+*.db
+*.sqlite
+*.sqlite3
