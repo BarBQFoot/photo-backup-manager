@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "05-UI-DESIGN.md",
+                "file": "members/04-AI-TESTING.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "05-UI-DESIGN"
+              "title": "04-AI-TESTING"
             }
           }
         ]
@@ -99,7 +99,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "05-UI-DESIGN.md",
+                "file": "members/04-AI-TESTING.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -118,7 +118,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "05-UI-DESIGN.md",
+                "file": "members/04-AI-TESTING.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
@@ -161,7 +161,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "05-UI-DESIGN.md",
+                "file": "members/04-AI-TESTING.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
@@ -190,25 +190,28 @@
   },
   "active": "005accead3bd325b",
   "lastOpenFiles": [
+    "00-เริ่มอ่านตรงนี้ก่อน.md",
+    "เข้ามาใหม่อ่านอันนี้ก่อน.md",
+    "members/04-AI-TESTING.md",
+    "README.md",
+    "test-data/README.md",
+    "assets/แกลเลอรี่.png",
     "assets/ย้ายรูปภาพ.png",
     "assets/ประวัติและตรวจสอบไฟล์.png",
-    "assets/แกลเลอรี่.png",
+    "00-PROJECT-BLUEPRINT.md",
+    "members/01-BACKEND.md",
+    "members/02-DATABASE.md",
+    "05-UI-DESIGN.md",
     "04-FLOW-SPEC.md",
     "SETUP_GUIDE.md",
     "01-API-CONTRACT.md",
-    "00-PROJECT-BLUEPRINT.md",
-    "05-UI-DESIGN.md",
     "assets/photo-backup-manager-ui-reference.png",
     "assets",
     "ข้อกำหนดและแผนลงมือพัฒนา Final Project Photo Backup.md",
     "REFERENCE_APP_AND_ADDITIONS.md",
     "03-UI-SPEC.md",
     "STITCH_UI_PROMPT.md",
-    "members/04-AI-TESTING.md",
     "members/03-FRONTEND.md",
-    "members/02-DATABASE.md",
-    "members/01-BACKEND.md",
-    "02-DATABASE-SPEC.md",
-    "test-data/README.md"
+    "02-DATABASE-SPEC.md"
   ]
 }

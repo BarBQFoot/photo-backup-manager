@@ -1,19 +1,28 @@
-# README
+﻿# Photo Backup Manager
 
-## About
+แอป Desktop สำหรับเลือกรูปจากโฟลเดอร์ต้นทาง แล้วย้ายไปยังปลายทาง พร้อมดูประวัติและตรวจไฟล์ที่หาย ในขอบเขต Final ผู้ใช้ยังวิเคราะห์รูปด้วย AI เพื่อบันทึกคำอธิบายและค้นหารูปจากคำอธิบายได้
 
-This is the official Wails Vanilla template.
+> **สถานะปัจจุบัน:** Repository อยู่ในระยะ Wails/Nuxt scaffold ความสามารถในเอกสารเป็นแผนและข้อกำหนด ยังไม่ได้หมายความว่าฟีเจอร์เหล่านั้นพัฒนาเสร็จแล้ว
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+## เริ่มต้น
 
-## Live Development
+- อ่าน [เข้ามาใหม่อ่านอันนี้ก่อน](docs/เข้ามาใหม่อ่านอันนี้ก่อน.md) เพื่อเลือกอ่านตามหน้าที่
+- อ่าน [พิมพ์เขียวโครงการ](docs/00-PROJECT-BLUEPRINT.md) เพื่อดูขอบเขตและสถานะงาน
+- ดู [คู่มือติดตั้ง](docs/SETUP_GUIDE.md) เพื่อเตรียมเครื่องและรันโปรเจกต์
 
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
+## พัฒนาและ Build
 
-## Building
+```sh
+cd frontend
+npm install
+cd ..
+wails dev
+```
 
-To build a redistributable, production mode package, use `wails build`.
+สร้างแอปสำหรับแจกจ่ายด้วย `wails build` ดูข้อกำหนดของระบบปฏิบัติการเพิ่มเติมได้ใน [คู่มือติดตั้ง Wails](https://wails.io/docs/gettingstarted/installation)
+
+## เทคโนโลยี
+
+Go · Wails v2 · Nuxt · (ตามแผน) SQLite/GORM และ Gemini
+
+
