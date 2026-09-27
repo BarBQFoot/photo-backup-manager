@@ -15,14 +15,15 @@ import (
 // DriveFile คือข้อมูลไฟล์ที่ได้จากการสแกนระบบไฟล์ตาม API Contract.
 // ข้อมูลจาก Database เช่น Description และ File ID จะเติมภายหลังเมื่อเชื่อม Repository.
 type DriveFile struct {
-	FileID     *int64 `json:"fileId"`
-	FileName   string `json:"fileName"`
-	Path       string `json:"path"`
-	SizeBytes  int64  `json:"sizeBytes"`
-	MIMEType   string `json:"mimeType"`
-	ModifiedAt string `json:"modifiedAt"`
-	FileStatus string `json:"fileStatus"`
-	AIStatus   string `json:"aiStatus"`
+	FileID      *int64 `json:"fileId"`
+	FileName    string `json:"fileName"`
+	Path        string `json:"path"`
+	SizeBytes   int64  `json:"sizeBytes"`
+	MIMEType    string `json:"mimeType"`
+	ModifiedAt  string `json:"modifiedAt"`
+	FileStatus  string `json:"fileStatus"`
+	AIStatus    string `json:"aiStatus"`
+	Description string `json:"description,omitempty"`
 }
 
 // ScanError คือข้อผิดพลาดจากการสแกนที่จะแปลงเป็น AppError ที่ Wails Boundary.
