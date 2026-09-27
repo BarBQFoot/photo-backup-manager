@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "members/04-AI-TESTING.md",
+                "file": "members/01-BACKEND.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "04-AI-TESTING"
+              "title": "01-BACKEND"
             }
           }
         ]
@@ -99,7 +99,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "members/04-AI-TESTING.md",
+                "file": "members/01-BACKEND.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -118,7 +118,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "members/04-AI-TESTING.md",
+                "file": "members/01-BACKEND.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
@@ -161,7 +161,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "members/04-AI-TESTING.md",
+                "file": "members/01-BACKEND.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
@@ -190,9 +190,9 @@
   },
   "active": "005accead3bd325b",
   "lastOpenFiles": [
-    "00-เริ่มอ่านตรงนี้ก่อน.md",
     "เข้ามาใหม่อ่านอันนี้ก่อน.md",
     "members/04-AI-TESTING.md",
+    "00-เริ่มอ่านตรงนี้ก่อน.md",
     "README.md",
     "test-data/README.md",
     "assets/แกลเลอรี่.png",
