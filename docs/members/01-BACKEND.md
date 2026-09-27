@@ -49,6 +49,7 @@
 
 - DTO และ Error: `01-API-CONTRACT.md`
 - Persistence: Repository ของสมาชิก 2 และ `02-DATABASE-SPEC.md`
+- เมธอด Repository ที่ใช้: `BackupJobStore` — `Create`, `Finish`, `ListByDestination`; `FileRecordStore` — `SaveByPath`, `GetByPath`, `UpdateStatus`; ดู Signature ใน `docs/members/02-DATABASE.md`
 - การเลือกไฟล์และ Progress UI: สมาชิก 3
 - Integration Scenarios: สมาชิก 4 และคู่มือ Test Data
 

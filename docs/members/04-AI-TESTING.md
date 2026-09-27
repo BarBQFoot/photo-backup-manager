@@ -33,6 +33,7 @@
 ## จุดเชื่อมต่อ
 
 - สมาชิก 2: AI Description/Status, Transaction และ Repository API
+- เมธอด Repository ที่ใช้: `FileRecordStore.SaveByPath`, `GetByID`, `UpdateDescription`, `SearchByDescription`; การค้นต้องส่ง Destination ปัจจุบันเพื่อจำกัดผลเป็นไฟล์ `active` ใน Gallery นั้น ดู Signature ใน `docs/members/02-DATABASE.md`
 - สมาชิก 3: สถานะกำลังวิเคราะห์/สำเร็จ/ล้มเหลว
 - สมาชิก 1: Path/Record ที่ใช้ได้จริงและสถานะ Integrity
 - ทั้งทีม: Shared Contract และรายการตรวจ Demo ปลายทาง
