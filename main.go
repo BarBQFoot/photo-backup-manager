@@ -2,21 +2,33 @@ package main
 
 import (
 	"embed"
+	"log"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"photo-backup-manager/repository"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
-	// Create an instance of the app structure
-	app := NewApp()
+	// Open the database and apply schema migrations before showing the window.
+	db, err := repository.NewDbConnection()
+	if err != nil {
+		log.Fatalf("initialize database: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("get database connection: %v", err)
+	}
+	defer sqlDB.Close()
+
+	app := NewApp(db)
 
 	// Create application with options
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:  "photo-backup-manager",
 		Width:  1024,
 		Height: 768,

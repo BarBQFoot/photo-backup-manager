@@ -190,7 +190,14 @@
   },
   "active": "005accead3bd325b",
   "lastOpenFiles": [
+    "members/02-DATABASE.md",
+    "02-DATABASE-SPEC.md",
+    "แผนโครงงาน Final Project โปรแกรมสำรองรูปภาพจาก Flash Drive หรือโทรศัพท์มือถือ.md",
+    "01-API-CONTRACT.md",
     "เข้ามาใหม่อ่านอันนี้ก่อน.md",
+    "00-PROJECT-BLUEPRINT.md",
+    "SETUP_GUIDE.md",
+    "members/01-BACKEND.md",
     "members/04-AI-TESTING.md",
     "00-เริ่มอ่านตรงนี้ก่อน.md",
     "README.md",
@@ -198,20 +205,14 @@
     "assets/แกลเลอรี่.png",
     "assets/ย้ายรูปภาพ.png",
     "assets/ประวัติและตรวจสอบไฟล์.png",
-    "00-PROJECT-BLUEPRINT.md",
-    "members/01-BACKEND.md",
-    "members/02-DATABASE.md",
     "05-UI-DESIGN.md",
     "04-FLOW-SPEC.md",
-    "SETUP_GUIDE.md",
-    "01-API-CONTRACT.md",
     "assets/photo-backup-manager-ui-reference.png",
     "assets",
     "ข้อกำหนดและแผนลงมือพัฒนา Final Project Photo Backup.md",
     "REFERENCE_APP_AND_ADDITIONS.md",
     "03-UI-SPEC.md",
     "STITCH_UI_PROMPT.md",
-    "members/03-FRONTEND.md",
-    "02-DATABASE-SPEC.md"
+    "members/03-FRONTEND.md"
   ]
 }

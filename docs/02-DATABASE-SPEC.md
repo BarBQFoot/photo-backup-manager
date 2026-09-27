@@ -12,6 +12,13 @@
 - บันทึกเวลา UTC; เปิด SQLite Foreign Keys
 - ไม่มีคอลัมน์ Binary/Blob หรือ Tag ใน Schema เวอร์ชันส่งงาน
 
+## นโยบายเวอร์ชันแรก
+
+- ใช้ Full Path ของไฟล์ในปลายทางเป็นตัวจับคู่ Metadata; เมื่อบันทึก Path เดิมซ้ำ `SaveByPath` จะอัปเดต Record เดิม ส่วนไฟล์ที่อยู่คนละ Path ถือเป็นคนละ Record
+- `file_records.path` มี Index ปกติ ไม่ใช่ Unique Index; การค้นก่อนบันทึกใน Transaction รองรับการใช้งานทีละรายการ แต่ยังไม่รับประกันกรณีเขียนพร้อมกันจากหลาย Process หากต้องรองรับกรณีนั้นต้องเพิ่ม Unique Index และจัดการ Path ซ้ำเดิมก่อน
+- ระหว่างพัฒนา ค่าเริ่มต้นของ DB คือ `database/photo_backup.db` ซึ่งเป็น Relative Path จาก Working Directory; `PHOTO_BACKUP_DB` ใช้กำหนด Path อื่นได้
+- ไฟล์ DB เป็นข้อมูลเฉพาะเครื่องและห้าม Commit เข้า Git; ก่อนแจกจ่าย EXE ต้องกำหนด Working Directory/ตำแหน่งเก็บ DB ให้แน่นอน เพื่อไม่ให้แอปสร้าง DB คนละไฟล์เมื่อเปิดจาก Shortcut หรือโฟลเดอร์อื่น
+
 ## Tables และ Fields
 
 ### `file_records`
@@ -64,6 +71,6 @@
 ## Open Questions / งานต่อยอด
 
 - **Hash Identity:** เพิ่มเมื่อจำเป็นต้องรักษาการจับคู่หลังย้าย/เปลี่ยนชื่อไฟล์; Algorithm และนโยบายยังไม่กำหนด
-- **Database Location:** อยู่บนเครื่องหรือย้ายตาม Drive; เวอร์ชันส่งงานใช้ตำแหน่งเครื่องตาม Implementation
+- **Database Location ตอนแจกจ่าย:** เวอร์ชันพัฒนามีค่าเริ่มต้นตาม Working Directory ตามด้านบน; ต้องยืนยันตำแหน่งของ EXE/ฐานข้อมูลและวิธีเปิดแอปก่อนแพ็กส่ง
 - **Metadata Portability:** การนำ Metadata ไปใช้กับ Drive บนเครื่องอื่นยังไม่รองรับในขอบเขตแรก
 - **Thumbnail/Preview:** รูปต้องโหลดจาก Drive; Cache หากเพิ่มภายหลังต้องไม่เก็บใน DB
