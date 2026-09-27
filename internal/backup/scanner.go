@@ -9,11 +9,11 @@ import (
 	"time"
 )
 
-//Scanner implementation เสร็จแล้ว และ Unit Test ผ่าน 
-//ยังทำส่วน Metadata Matching, Missing Detection และ Wails Integration ไม่ได้
+// Scanner ทำหน้าที่อ่านข้อมูลไฟล์จากระบบไฟล์ และยังไม่รวม Metadata Matching,
+// Missing Detection หรือการเชื่อมต่อ Wails.
 
-// DriveFile is the filesystem portion of the API contract.
-// Database fields are left empty until the metadata repository is connected.
+// DriveFile คือข้อมูลไฟล์ที่ได้จากการสแกนระบบไฟล์ตาม API Contract.
+// ข้อมูลจาก Database เช่น Description และ File ID จะเติมภายหลังเมื่อเชื่อม Repository.
 type DriveFile struct {
 	FileID     *int64 `json:"fileId"`
 	FileName   string `json:"fileName"`
@@ -25,22 +25,24 @@ type DriveFile struct {
 	AIStatus   string `json:"aiStatus"`
 }
 
-// ScanError is converted to the shared AppError at the Wails boundary.
+// ScanError คือข้อผิดพลาดจากการสแกนที่จะแปลงเป็น AppError ที่ Wails Boundary.
 type ScanError struct {
 	Code    string
 	Message string
 	Err     error
 }
 
+// Error คืนข้อความอธิบายสาเหตุของข้อผิดพลาดจากการสแกน.
 func (e *ScanError) Error() string {
 	return e.Message
 }
 
+// Unwrap คืนข้อผิดพลาดต้นเหตุเพื่อให้ errors.Is หรือ errors.As ตรวจสอบต่อได้.
 func (e *ScanError) Unwrap() error {
 	return e.Err
 }
 
-// ScanDrive recursively scans root and returns image files found on disk.
+// ScanDrive สแกนโฟลเดอร์ root และโฟลเดอร์ย่อยแบบ Recursive แล้วคืนเฉพาะไฟล์รูป.
 func ScanDrive(root string) ([]DriveFile, error) {
 	if strings.TrimSpace(root) == "" {
 		return nil, &ScanError{Code: "INVALID_PATH", Message: "path is required"}
@@ -96,10 +98,12 @@ func ScanDrive(root string) ([]DriveFile, error) {
 	return files, nil
 }
 
+// isImageFile ตรวจสอบจาก MIME Type ของนามสกุลว่า Path เป็นไฟล์รูปหรือไม่.
 func isImageFile(path string) bool {
 	return strings.HasPrefix(imageMIMEType(path), "image/")
 }
 
+// imageMIMEType แปลงนามสกุลไฟล์เป็น MIME Type ที่ใช้ระบุชนิดไฟล์รูป.
 func imageMIMEType(path string) string {
 	extension := strings.ToLower(filepath.Ext(path))
 	switch extension {
