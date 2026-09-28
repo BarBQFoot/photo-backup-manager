@@ -23,6 +23,7 @@ type DriveService struct {
 	fileStore  repository.FileRecordStore
 	jobStore   repository.BackupJobStore
 	wailsCtx   context.Context
+	emitEvent  func(context.Context, string, ...interface{})
 }
 
 type AppError struct {
@@ -100,7 +101,10 @@ type DeleteResult struct {
 }
 
 func NewDriveService() *DriveService {
-	return &DriveService{progress: BackupProgress{Status: "idle"}}
+	return &DriveService{
+		progress:  BackupProgress{Status: "idle"},
+		emitEvent: wailsRuntime.EventsEmit,
+	}
 }
 
 func NewDriveServiceWithRepositories(fileStore repository.FileRecordStore, jobStore repository.BackupJobStore) *DriveService {
@@ -366,7 +370,7 @@ func (s *DriveService) setProgress(progress BackupProgress) {
 	ctx := s.wailsCtx
 	s.progressMu.Unlock()
 	if ctx != nil {
-		wailsRuntime.EventsEmit(ctx, "backup:progress", progress)
+		s.emitEvent(ctx, "backup:progress", progress)
 	}
 }
 
