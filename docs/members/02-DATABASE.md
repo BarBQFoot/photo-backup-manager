@@ -1,6 +1,6 @@
 # สมาชิก 2 — คู่มือ Database / GORM
 
-> ขอบเขตงาน: จัดเก็บ Metadata ด้วย SQLite/GORM เท่านั้น ปัจจุบันมี Database Schema, Migration, Generated Models/Queries และ Repository เบื้องต้นแล้ว ส่วนการเชื่อม Repository เข้ากับ Backup/AI Service ยังต้องประสานกับสมาชิกที่ดูแลส่วนนั้น
+> ขอบเขตงาน: จัดเก็บ Metadata ด้วย SQLite/GORM เท่านั้น ปัจจุบันมี Database Schema, Migration, Generated Models/Queries และ Repository เบื้องต้นแล้ว สมาชิก 1 เชื่อม Repository เข้ากับ `DriveService` แล้ว ส่วนการเชื่อมกับ AI Service ให้ประสานสมาชิก 4
 
 ## ความรับผิดชอบ
 
@@ -54,14 +54,14 @@ repository/
   backup_job.go      สร้าง/ปิด Job และอ่าน History
   main/model_gen.go  สคริปต์ GORM Gen
 main.go              เปิด DB/Migration ก่อนเริ่ม Wails
-app.go               เก็บ DB connection สำหรับเชื่อมกับฟีเจอร์ในขั้นถัดไป
+  app.go               เปิด DB, สร้าง Repository และส่งให้ DriveService
 ```
 
 - `database` เก็บ Schema และ Migration; `repository/dbconnect.go` เปิดการเชื่อมต่อ
 - `model/model` และ `model/query` เป็นไฟล์ที่ GORM Gen สร้างจากตาราง SQLite
 - `repository` ห่อ query และ transaction; สมาชิก 2 เป็นเจ้าของส่วนนี้และประสาน signature กับ Backend/AI
 - `service` เป็นชั้น use case; ประสานกับผู้ดูแล Backend/AI ว่าใครเป็นเจ้าของแต่ละ service เพื่อไม่ให้ทำซ้ำ
-- `main.go` เปิด DB และเรียก Migration ก่อนเปิดหน้าต่าง Wails; ปัจจุบัน `app.go` เก็บ DB connection แต่ยังไม่ได้สร้าง/ส่ง Repository ให้ Service เรียก
+- `main.go` เปิด DB และเรียก Migration ก่อนเปิดหน้าต่าง Wails; `app.go` สร้าง Repository แล้วส่งให้ `DriveService` ใช้กับ Backup/Metadata
 - สคริปต์ Generate คือ `go run ./repository/main`; รันจากโฟลเดอร์รากโปรเจกต์เมื่อแก้ Schema แล้วต้องสร้าง Models/Queries ใหม่
 - ไม่คัดลอก `.env`, ฐานข้อมูล `foodie.db`, credentials หรือข้อมูล User จากโปรเจกต์ตัวอย่างมาใช้
 
@@ -70,7 +70,8 @@ app.go               เก็บ DB connection สำหรับเชื่�
 - Migration ถูกเรียกจาก `main.go` ผ่าน `repository.NewDbConnection()` โดยค่าเริ่มต้นใช้ `database/photo_backup.db`; กำหนดไฟล์อื่นได้ด้วยตัวแปร `PHOTO_BACKUP_DB`
 - ตรวจ Schema ของ `photo_backup.db` แล้วพบตาราง, CHECK constraints, Foreign Key, Index และ `schema_migrations` ตาม `database/schema.sql`; Integrity และ Foreign Key checks ผ่านในขณะตรวจ
 - ทดลอง Repository ในฐานข้อมูล SQLite ในหน่วยความจำแล้ว: อ่านตาม ID, อัปเดต Description/Status, ค้นแยก Destination และปิด/อ่าน Job ผ่าน ตัวอย่างชั่วคราวถูกลบหลังทดสอบ
-- ยังไม่ได้เชื่อม Repository เข้ากับ Backup/AI Service หรือ Wails Methods; ต้องตกลงผู้เรียกใช้และ Signatures กับสมาชิก 1/4
+- สมาชิก 1 เชื่อม `FileRecordStore` และ `BackupJobStore` เข้ากับ `DriveService` แล้ว; ฟังก์ชัน Drive/Backup ถูกเปิดผ่าน Wails
+- การเชื่อม Repository เข้ากับ AI Service และการใช้ AI Description/Search ยังต้องประสานกับสมาชิก 4
 - การป้องกัน Path ซ้ำยังไม่มี Unique Constraint ใน SQLite; `SaveByPath` ตรวจและบันทึกภายใน Transaction ตามนโยบายรุ่นแรกด้านล่าง หากต้องรองรับการเขียนพร้อมกันหลาย Process ต้องทบทวนเพิ่ม
 - นโยบายรุ่นแรก: Path เดิมในปลายทางเดิมอัปเดต Record เดิม; Path ต่างกันเป็นคนละ Record การเขียนพร้อมกันหลาย Process ยังไม่รับประกันว่าจะไม่มี Path ซ้ำ
 - DB ระหว่างพัฒนาใช้ `database/photo_backup.db` แบบ Relative Path จาก Working Directory; `PHOTO_BACKUP_DB` override ได้ ก่อนแจกจ่าย EXE ต้องกำหนดตำแหน่ง DB/Working Directory ให้แน่นอน
