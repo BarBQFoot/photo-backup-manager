@@ -30,9 +30,29 @@ type FileRecordStore interface {
 	SaveByPath(ctx context.Context, record *dbmodel.FileRecord) error
 	GetByID(ctx context.Context, id int32) (*dbmodel.FileRecord, error)
 	GetByPath(ctx context.Context, path string) (*dbmodel.FileRecord, error)
+	ListByDestinationPath(ctx context.Context, destination string) ([]*dbmodel.FileRecord, error)
 	UpdateDescription(ctx context.Context, id int32, description, aiStatus string) error
 	UpdateStatus(ctx context.Context, id int32, status string) error
 	SearchByDescription(ctx context.Context, destination, keyword string) ([]*dbmodel.FileRecord, error)
+}
+
+// ListByDestinationPath เพิ่มมาเพื่อให้ Backup ตรวจ Missing Record ตาม Destination ได้.
+func (r *fileRecordRepository) ListByDestinationPath(ctx context.Context, destination string) ([]*dbmodel.FileRecord, error) {
+	if strings.TrimSpace(destination) == "" {
+		return nil, errors.New("destination is required")
+	}
+
+	records, err := r.q.WithContext(ctx).FileRecord.Find()
+	if err != nil {
+		return nil, fmt.Errorf("list file records for %q: %w", destination, err)
+	}
+	matching := make([]*dbmodel.FileRecord, 0, len(records))
+	for _, record := range records {
+		if record.Status != FileRecordStatusDeleted && isPathWithinDestination(destination, record.Path) {
+			matching = append(matching, record)
+		}
+	}
+	return matching, nil
 }
 
 type fileRecordRepository struct {
