@@ -270,6 +270,87 @@ func TestDriveServiceReturnsMissingRecordFromSQLite(t *testing.T) {
 	if len(files) != 1 || files[0].FileStatus != "missing" || files[0].Description != "missing fixture" {
 		t.Fatalf("unexpected missing result: %#v", files)
 	}
+	record, err := fileStore.GetByPath(testContext(), missingPath)
+	if err != nil || record.Status != repository.FileRecordStatusMissing {
+		t.Fatalf("record status after missing scan = %v, %v; want missing", record, err)
+	}
+}
+
+func TestDriveServiceMovesFileWhenActiveDestinationRecordHasNoFile(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "ai-edit")
+	destination := filepath.Join(root, "test")
+	if err := os.MkdirAll(source, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	photo := filepath.Join(source, "photo.jpg")
+	destinationFile := filepath.Join(destination, "photo.jpg")
+	if err := os.WriteFile(photo, []byte("returned photo"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	fileStore, jobStore, closeDB := newSQLiteStores(t)
+	defer closeDB()
+	if err := fileStore.SaveByPath(testContext(), &dbmodel.FileRecord{
+		FileName: filepath.Base(destinationFile), Path: destinationFile, SizeBytes: 12,
+		MimeType: "image/jpeg", ModifiedAt: time.Now(), AiStatus: repository.AIStatusAnalyzed,
+		Description: "keep existing description", Status: repository.FileRecordStatusActive,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	service := NewDriveServiceWithRepositories(fileStore, jobStore)
+	result, err := service.StartBackup(BackupRequest{
+		SourcePath: source, DestinationPath: destination, FilePaths: []string{photo},
+	})
+	if err != nil {
+		t.Fatalf("StartBackup() error = %v", err)
+	}
+	if result.SuccessCount != 1 || result.SkippedCount != 0 || result.FailedCount != 0 {
+		t.Fatalf("unexpected backup result: %#v", result)
+	}
+	if _, err := os.Stat(photo); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("source still exists or stat failed: %v", err)
+	}
+	if content, err := os.ReadFile(destinationFile); err != nil || string(content) != "returned photo" {
+		t.Fatalf("destination content = %q, error = %v", content, err)
+	}
+	record, err := fileStore.GetByPath(testContext(), destinationFile)
+	if err != nil || record.Status != repository.FileRecordStatusActive {
+		t.Fatalf("destination record = %#v, error = %v; want active", record, err)
+	}
+}
+
+func TestDriveServiceScanRestoresActiveStatusWhenFileReturns(t *testing.T) {
+	destination := t.TempDir()
+	filePath := filepath.Join(destination, "returned.jpg")
+	fileStore, jobStore, closeDB := newSQLiteStores(t)
+	defer closeDB()
+	if err := fileStore.SaveByPath(testContext(), &dbmodel.FileRecord{
+		FileName: filepath.Base(filePath), Path: filePath, SizeBytes: 8,
+		MimeType: "image/jpeg", ModifiedAt: time.Now(), AiStatus: repository.AIStatusAnalyzed,
+		Status: repository.FileRecordStatusMissing,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filePath, []byte("returned"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := NewDriveServiceWithRepositories(fileStore, jobStore).ScanDrive(destination)
+	if err != nil {
+		t.Fatalf("ScanDrive() error = %v", err)
+	}
+	if len(files) != 1 || files[0].FileStatus != "available" {
+		t.Fatalf("scan result = %#v; want one available file", files)
+	}
+	record, err := fileStore.GetByPath(testContext(), filePath)
+	if err != nil || record.Status != repository.FileRecordStatusActive {
+		t.Fatalf("record = %#v, error = %v; want active", record, err)
+	}
 }
 
 func TestDriveServiceStartBackupReportsFileRecordSaveFailure(t *testing.T) {
