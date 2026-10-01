@@ -353,6 +353,81 @@ func TestDriveServiceScanRestoresActiveStatusWhenFileReturns(t *testing.T) {
 	}
 }
 
+func TestDriveServiceMovesTrackedFileWithoutReportingOldPathMissing(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "old")
+	destination := filepath.Join(root, "new")
+	for _, folder := range []string{source, destination} {
+		if err := os.MkdirAll(folder, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oldPath := filepath.Join(source, "photo.jpg")
+	if err := os.WriteFile(oldPath, []byte("photo"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fileStore, jobStore, closeDB := newSQLiteStores(t)
+	defer closeDB()
+	original := &dbmodel.FileRecord{
+		FileName: "photo.jpg", Path: oldPath, SizeBytes: 5, ModifiedAt: time.Now(),
+		AiStatus: repository.AIStatusAnalyzed, Description: "cat", Status: repository.FileRecordStatusActive,
+	}
+	if err := fileStore.SaveByPath(testContext(), original); err != nil {
+		t.Fatal(err)
+	}
+	service := NewDriveServiceWithRepositories(fileStore, jobStore)
+	result, err := service.StartBackup(BackupRequest{SourcePath: source, DestinationPath: destination, FilePaths: []string{oldPath}})
+	if err != nil || result.SuccessCount != 1 || result.FailedCount != 0 {
+		t.Fatalf("StartBackup() = %#v, %v", result, err)
+	}
+	oldFiles, err := service.ScanDrive(source)
+	if err != nil || len(oldFiles) != 0 {
+		t.Fatalf("old folder scan = %#v, %v; want no missing row", oldFiles, err)
+	}
+	newFiles, err := service.ScanDrive(destination)
+	if err != nil || len(newFiles) != 1 || newFiles[0].FileID == nil || *newFiles[0].FileID != int64(original.ID) || newFiles[0].Description != "cat" || newFiles[0].AIStatus != repository.AIStatusAnalyzed {
+		t.Fatalf("new folder scan = %#v, %v", newFiles, err)
+	}
+	if _, err := fileStore.GetByPath(testContext(), oldPath); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("old path still has a record: %v", err)
+	}
+}
+
+func TestDriveServiceKeepsTrackedSourceWhenDestinationHasRecord(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "old")
+	destination := filepath.Join(root, "new")
+	for _, folder := range []string{source, destination} {
+		if err := os.MkdirAll(folder, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oldPath := filepath.Join(source, "photo.jpg")
+	newPath := filepath.Join(destination, "photo.jpg")
+	if err := os.WriteFile(oldPath, []byte("photo"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fileStore, jobStore, closeDB := newSQLiteStores(t)
+	defer closeDB()
+	for _, path := range []string{oldPath, newPath} {
+		if err := fileStore.SaveByPath(testContext(), &dbmodel.FileRecord{
+			FileName: "photo.jpg", Path: path, SizeBytes: 5, ModifiedAt: time.Now(),
+			AiStatus: repository.AIStatusUnanalyzed, Status: repository.FileRecordStatusActive,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result, err := NewDriveServiceWithRepositories(fileStore, jobStore).StartBackup(BackupRequest{
+		SourcePath: source, DestinationPath: destination, FilePaths: []string{oldPath},
+	})
+	if err != nil || result.FailedCount != 1 || result.Items[0].Error.Code != "DESTINATION_METADATA_CONFLICT" {
+		t.Fatalf("StartBackup() = %#v, %v", result, err)
+	}
+	if _, err := os.Stat(oldPath); err != nil {
+		t.Fatalf("source file should remain: %v", err)
+	}
+}
+
 func TestDriveServiceStartBackupReportsFileRecordSaveFailure(t *testing.T) {
 	root := t.TempDir()
 	source := filepath.Join(root, "source")
@@ -498,6 +573,10 @@ func (failingFileRecordStore) GetByID(context.Context, int32) (*dbmodel.FileReco
 
 func (failingFileRecordStore) GetByPath(context.Context, string) (*dbmodel.FileRecord, error) {
 	return nil, gorm.ErrRecordNotFound
+}
+
+func (failingFileRecordStore) MovePath(context.Context, int32, string, int32, int32, time.Time) error {
+	return errors.New("database write failed")
 }
 
 func (failingFileRecordStore) ListByDestinationPath(context.Context, string) ([]*dbmodel.FileRecord, error) {
