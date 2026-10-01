@@ -277,7 +277,28 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 	s.setProgress(BackupProgress{Total: result.TotalFiles, Status: "moving"})
 	for _, sourcePath := range request.FilePaths {
 		destinationPath := filepath.Join(request.DestinationPath, filepath.Base(sourcePath))
-		status, err := s.moveSelectedFile(sourcePath, destinationPath)
+		var sourceRecord *dbmodel.FileRecord
+		var err error
+		if s.fileStore != nil {
+			sourceRecord, err = s.fileStore.GetByPath(context.Background(), sourcePath)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				err = nil
+			} else if err != nil {
+				err = &AppError{Code: "METADATA_READ_FAILED", Message: err.Error()}
+			}
+			if err == nil && sourceRecord != nil {
+				_, destinationErr := s.fileStore.GetByPath(context.Background(), destinationPath)
+				if destinationErr == nil {
+					err = &AppError{Code: "DESTINATION_METADATA_CONFLICT", Message: "destination already has a file record"}
+				} else if !errors.Is(destinationErr, gorm.ErrRecordNotFound) {
+					err = &AppError{Code: "METADATA_READ_FAILED", Message: destinationErr.Error()}
+				}
+			}
+		}
+		status := ""
+		if err == nil {
+			status, err = s.moveSelectedFile(sourcePath, destinationPath)
+		}
 		item := BackupItemResult{
 			SourcePath:      sourcePath,
 			DestinationPath: destinationPath,
@@ -292,7 +313,13 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 		} else {
 			result.SuccessCount++
 			if s.fileStore != nil {
-				if saveErr := s.saveFileRecord(destinationPath, result.JobID); saveErr != nil {
+				var saveErr *AppError
+				if sourceRecord != nil {
+					saveErr = s.moveFileRecord(sourceRecord.ID, destinationPath, result.JobID)
+				} else {
+					saveErr = s.saveFileRecord(destinationPath, result.JobID)
+				}
+				if saveErr != nil {
 					result.FailedCount++
 					result.SuccessCount--
 					item.Status = "failed"
@@ -322,6 +349,17 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 		}
 	}
 	return result, nil
+}
+
+func (s *DriveService) moveFileRecord(id int32, destinationPath string, jobID int64) *AppError {
+	info, err := os.Stat(destinationPath)
+	if err != nil {
+		return &AppError{Code: "DATABASE_UPDATE_FAILED", Message: err.Error()}
+	}
+	if err := s.fileStore.MovePath(context.Background(), id, destinationPath, int32(jobID), int32(info.Size()), info.ModTime()); err != nil {
+		return &AppError{Code: "DATABASE_UPDATE_FAILED", Message: err.Error()}
+	}
+	return nil
 }
 
 // moveSelectedFile เพิ่มมาเพื่อข้าม Active Record แม้ไฟล์ปลายทางจริงจะหายไปแล้ว.
@@ -415,6 +453,8 @@ func cleanPath(path string) string {
 func toAppError(err error) *AppError {
 	appError := &AppError{Code: "INTERNAL_ERROR", Message: err.Error()}
 	switch typedError := err.(type) {
+	case *AppError:
+		return typedError
 	case *backup.PathError:
 		appError.Code = typedError.Code
 		appError.Message = typedError.Message

@@ -72,10 +72,10 @@ main.go              เปิด DB/Migration ก่อนเริ่ม Wails
 - ทดลอง Repository ในฐานข้อมูล SQLite ในหน่วยความจำแล้ว: อ่านตาม ID, อัปเดต Description/Status, ค้นแยก Destination และปิด/อ่าน Job ผ่าน ตัวอย่างชั่วคราวถูกลบหลังทดสอบ
 - สมาชิก 1 เชื่อม `FileRecordStore` และ `BackupJobStore` เข้ากับ `DriveService` แล้ว; ฟังก์ชัน Drive/Backup ถูกเปิดผ่าน Wails
 - การเชื่อม Repository เข้ากับ AI Service และการใช้ AI Description/Search ยังต้องประสานกับสมาชิก 4
-- การป้องกัน Path ซ้ำยังไม่มี Unique Constraint ใน SQLite; `SaveByPath` ตรวจและบันทึกภายใน Transaction ตามนโยบายรุ่นแรกด้านล่าง หากต้องรองรับการเขียนพร้อมกันหลาย Process ต้องทบทวนเพิ่ม
-- นโยบายรุ่นแรก: Path เดิมในปลายทางเดิมอัปเดต Record เดิม; Path ต่างกันเป็นคนละ Record การเขียนพร้อมกันหลาย Process ยังไม่รับประกันว่าจะไม่มี Path ซ้ำ
+- `file_records.path` มี Unique Index แล้ว; `SaveByPath` อัปเดต Record เดิมเมื่อ Path ตรงกัน และฐานข้อมูลเก่าที่มี Path ซ้ำต้องแก้ข้อมูลก่อนเปิดด้วย schema ใหม่
+- การเขียนพร้อมกันไม่สร้าง Path ซ้ำ แต่ผู้เรียกอาจได้รับข้อผิดพลาดจากการชนกันหรือฐานข้อมูลถูกล็อก และต้องจัดการ/ลองใหม่ตามกรณี
 - DB ระหว่างพัฒนาใช้ `database/photo_backup.db` แบบ Relative Path จาก Working Directory; `PHOTO_BACKUP_DB` override ได้ ก่อนแจกจ่าย EXE ต้องกำหนดตำแหน่ง DB/Working Directory ให้แน่นอน
-- ยังไม่ได้ตรวจพฤติกรรมปิด/เปิดแอปเพื่อกู้ Job ที่ค้างเป็น `interrupted`
+- เมื่อเปิดฐานข้อมูล `NewDbConnection` จะเปลี่ยน Job ที่ยังเป็น `running` เป็น `interrupted`; เหมาะกับการรันแอปเพียงหนึ่ง instance ต่อฐานข้อมูล
 
 ## Mock Data
 
@@ -86,7 +86,7 @@ main.go              เปิด DB/Migration ก่อนเริ่ม Wails
 - Migration สร้างตารางและ Constraint ใน SQLite ชั่วคราวได้
 - Foreign Key และ Path Index ทำงานตาม Spec
 - History และ Metadata ของปลายทาง A ไม่ปนกับปลายทาง B
-- ตรวจพฤติกรรม Path ซ้ำ; ปัจจุบัน Transaction ช่วยจัดลำดับการทำงาน แต่ไม่มี Unique Constraint ป้องกันกรณีเรียกพร้อมกัน
+- ตรวจพฤติกรรม Path ซ้ำและ Unique Index รวมถึงฐานข้อมูลเก่าที่มี Path ซ้ำ
 - สถานะ `deleted` และ `missing` แตกต่างกันและจัดการ Metadata ตาม Contract
 - ตรวจ Schema แล้วไม่มี Binary, Base64, BLOB หรือ Thumbnail Bytes
 - Path ที่เดิมเปิดซ้ำแล้วจับคู่ Description ได้; ย้าย/เปลี่ยนชื่อเป็นข้อจำกัดที่ทราบ
