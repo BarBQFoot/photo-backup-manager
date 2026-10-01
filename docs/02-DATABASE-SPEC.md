@@ -15,7 +15,7 @@
 ## นโยบายเวอร์ชันแรก
 
 - ใช้ Full Path ของไฟล์ในปลายทางเป็นตัวจับคู่ Metadata; เมื่อบันทึก Path เดิมซ้ำ `SaveByPath` จะอัปเดต Record เดิม ส่วนไฟล์ที่อยู่คนละ Path ถือเป็นคนละ Record
-- `file_records.path` มี Index ปกติ ไม่ใช่ Unique Index; การค้นก่อนบันทึกใน Transaction รองรับการใช้งานทีละรายการ แต่ยังไม่รับประกันกรณีเขียนพร้อมกันจากหลาย Process หากต้องรองรับกรณีนั้นต้องเพิ่ม Unique Index และจัดการ Path ซ้ำเดิมก่อน
+- `file_records.path` มี Unique Index ป้องกันการบันทึก Full Path ซ้ำ แม้มีการเขียนพร้อมกัน; ฐานข้อมูลเก่าที่มี Path ซ้ำต้องแก้ข้อมูลซ้ำก่อนจึงจะสร้าง Index ได้
 - ระหว่างพัฒนา ค่าเริ่มต้นของ DB คือ `database/photo_backup.db` ซึ่งเป็น Relative Path จาก Working Directory; `PHOTO_BACKUP_DB` ใช้กำหนด Path อื่นได้
 - ไฟล์ DB เป็นข้อมูลเฉพาะเครื่องและห้าม Commit เข้า Git; ก่อนแจกจ่าย EXE ต้องกำหนด Working Directory/ตำแหน่งเก็บ DB ให้แน่นอน เพื่อไม่ให้แอปสร้าง DB คนละไฟล์เมื่อเปิดจาก Shortcut หรือโฟลเดอร์อื่น
 
