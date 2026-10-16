@@ -4,7 +4,14 @@ Nuxt SPA สำหรับ Wails มีเมนูด้านบนสลั�
 
 ## รูปแบบหน้าจอ
 
-ธีมพื้นครีม สีหลักส้มอิฐ ใช้ CSS ปกติใน app/assets/css/main.css โดยปรับสีทั้งแอปผ่านตัวแปรต้นไฟล์ ไอคอน SVG รวมอยู่ใน AppIcon.vue และแต่ละหน้าแยกเป็น Component ไม่มีไลบรารี UI เพิ่มเติม
+ธีมพื้นครีม สีหลักส้มอิฐ ใช้ Tailwind/DaisyUI และ CSS ใน app/assets/css/main.css ไอคอน SVG รวมอยู่ใน AppIcon.vue
+
+- app/app.vue สร้าง PhotoManager ชุดเดียวให้ layout และทุกหน้าใช้ร่วมกัน และแสดง NuxtLayout / NuxtPage พร้อม keepalive เพื่อเก็บสถานะเมื่อสลับหน้า
+- app/layouts/default.vue เก็บเมนู ส่วนหัว สถานะ Desktop ข้อความแจ้งเตือน และ footer
+- app/pages/index.vue เป็นหน้าย้ายรูป (/), gallery.vue เป็นแกลเลอรี (/gallery), history.vue เป็นประวัติและตรวจสอบ (/history)
+- app/components/ เก็บ UI ย่อยที่ใช้ร่วมกัน เช่น AppIcon และ ConfirmDialog
+- app/composables/useSharedPhotoManager.ts รับ PhotoManager จาก app.vue ผ่าน provide/inject โดยไม่สร้างข้อมูลแยกในแต่ละหน้า
+- ใช้ NuxtLink และ hash routing สำหรับ Wails เช่น /#/gallery
 
 - **Move Photos:** SelectFolder, ScanDrive, StartBackup, GetBackupProgress และ backup:progress; ยืนยันย้ายและสรุปผลพร้อมเวลาจริง
 - **Gallery:** ScanDrive, GetFileMetadata; อ่าน AI Status / Description และกรองคำอธิบายที่โหลดแล้วภายในปลายทางปัจจุบัน

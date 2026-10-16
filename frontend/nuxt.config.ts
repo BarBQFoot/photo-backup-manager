@@ -3,6 +3,9 @@ import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from 'node:url';
 export default defineNuxtConfig({
   ssr: false,
+  router: {
+    options: { hashMode: true },
+  },
   // Only production builds write to the folder embedded by Go.
   // Nuxt dev cleans its output directory when starting or restarting.
   $production: {
