@@ -11,12 +11,12 @@
 โครงสร้างที่เสนอ: `frontend/app/pages/`, `frontend/app/components/` และ Frontend State/Composable ที่เกี่ยวข้อง ปรับตามโครงสร้าง Nuxt ปัจจุบัน ก่อนแก้ `frontend/wailsjs/` ซึ่งเป็นไฟล์สร้างอัตโนมัติ หรือ Shared Go Bindings ให้ประสานทีมก่อน
 
 ## Methods / Data
-
-เรียก `ScanDrive`, `StartBackup`, `GetBackupProgress`/event `backup:progress`, `GetBackupHistory`, `GetFileMetadata`, `DeleteFile`, `AnalyzeImage(path)` และ `SearchImages` ตาม `01-API-CONTRACT.md` ห้ามอ่าน SQLite หรือทำ File System Operation ใน Browser Code
-
-## Dependency
-
-Nuxt Scaffold, Wails Runtime/Bindings, API Contract, UI Spec และ Mock Fixtures การจัดหน้าและพัฒนาสถานะไม่จำเป็นต้องรอ Backend/Database จริง
+		
+		เรียก `ScanDrive`, `StartBackup`, `GetBackupProgress`/event `backup:progress`, `GetBackupHistory`, `GetFileMetadata`, `DeleteFile`, `AnalyzeImage(path)` และ `SearchImages` ตาม `01-API-CONTRACT.md` ห้ามอ่าน SQLite หรือทำ File System Operation ใน Browser Code
+		
+		## Dependency
+		
+		Nuxt Scaffold, Wails Runtime/Bindings, API Contract, UI Spec และ Mock Fixtures การจัดหน้าและพัฒนาสถานะไม่จำเป็นต้องรอ Backend/Database จริง
 
 ## Mock Data
 

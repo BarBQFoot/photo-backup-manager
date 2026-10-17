@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	dbmodel "photo-backup-manager/model/model"
 	"photo-backup-manager/model/query"
@@ -30,6 +31,7 @@ type FileRecordStore interface {
 	SaveByPath(ctx context.Context, record *dbmodel.FileRecord) error
 	GetByID(ctx context.Context, id int32) (*dbmodel.FileRecord, error)
 	GetByPath(ctx context.Context, path string) (*dbmodel.FileRecord, error)
+	MovePath(ctx context.Context, id int32, destinationPath string, jobID int32, sizeBytes int32, modifiedAt time.Time) error
 	ListByDestinationPath(ctx context.Context, destination string) ([]*dbmodel.FileRecord, error)
 	UpdateDescription(ctx context.Context, id int32, description, aiStatus string) error
 	UpdateStatus(ctx context.Context, id int32, status string) error
@@ -121,6 +123,27 @@ func (r *fileRecordRepository) GetByPath(ctx context.Context, path string) (*dbm
 		return nil, fmt.Errorf("get file record for %q: %w", path, err)
 	}
 	return record, nil
+}
+
+// MovePath keeps a file's identity and metadata when the app moves it to another folder.
+func (r *fileRecordRepository) MovePath(ctx context.Context, id int32, destinationPath string, jobID int32, sizeBytes int32, modifiedAt time.Time) error {
+	if id <= 0 || strings.TrimSpace(destinationPath) == "" {
+		return errors.New("file record ID and destination path are required")
+	}
+	result, err := r.q.WithContext(ctx).FileRecord.
+		Where(r.q.FileRecord.ID.Eq(id)).
+		Updates(map[string]interface{}{
+			"path": destinationPath, "file_name": filepath.Base(destinationPath),
+			"backup_job_id": jobID, "size_bytes": sizeBytes, "modified_at": modifiedAt,
+			"status": FileRecordStatusActive,
+		})
+	if err != nil {
+		return fmt.Errorf("move file record %d to %q: %w", id, destinationPath, err)
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (r *fileRecordRepository) UpdateDescription(ctx context.Context, id int32, description, aiStatus string) error {

@@ -42,5 +42,8 @@ func NewDbConnection() (*gorm.DB, error) {
 	if err := projectdb.Migrate(db); err != nil {
 		return nil, fmt.Errorf("migrate SQLite database %q: %w", dbPath, err)
 	}
+	if err := db.Exec("UPDATE backup_jobs SET status = 'interrupted', completed_at = CURRENT_TIMESTAMP WHERE status = 'running'").Error; err != nil {
+		return nil, fmt.Errorf("recover interrupted backup jobs in %q: %w", dbPath, err)
+	}
 	return db, nil
 }

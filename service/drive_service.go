@@ -131,6 +131,11 @@ func (s *DriveService) ScanDrive(path string) ([]backup.DriveFile, error) {
 		if recordErr != nil {
 			return nil, &AppError{Code: "METADATA_READ_FAILED", Message: recordErr.Error()}
 		}
+		if record.Status != repository.FileRecordStatusActive {
+			if err := s.fileStore.UpdateStatus(ctx, record.ID, repository.FileRecordStatusActive); err != nil {
+				return nil, &AppError{Code: "METADATA_UPDATE_FAILED", Message: err.Error()}
+			}
+		}
 		fileID := int64(record.ID)
 		files[index].FileID = &fileID
 		files[index].AIStatus = record.AiStatus
@@ -146,11 +151,22 @@ func (s *DriveService) ScanDrive(path string) ([]backup.DriveFile, error) {
 		if seenPaths[cleanPath(record.Path)] {
 			continue
 		}
+		fileStatus := repository.FileRecordStatusMissing
+		if _, statErr := os.Stat(record.Path); statErr == nil {
+			fileStatus = repository.FileRecordStatusActive
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return nil, &AppError{Code: "FILE_STATUS_CHECK_FAILED", Message: statErr.Error()}
+		}
+		if record.Status != fileStatus {
+			if err := s.fileStore.UpdateStatus(ctx, record.ID, fileStatus); err != nil {
+				return nil, &AppError{Code: "METADATA_UPDATE_FAILED", Message: err.Error()}
+			}
+		}
 		fileID := int64(record.ID)
 		files = append(files, backup.DriveFile{
 			FileID: &fileID, FileName: record.FileName, Path: record.Path,
 			SizeBytes: int64(record.SizeBytes), MIMEType: record.MimeType,
-			ModifiedAt: record.ModifiedAt.Format(time.RFC3339), FileStatus: "missing",
+			ModifiedAt: record.ModifiedAt.Format(time.RFC3339), FileStatus: fileStatus,
 			AIStatus: record.AiStatus, Description: record.Description,
 		})
 	}
@@ -261,7 +277,28 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 	s.setProgress(BackupProgress{Total: result.TotalFiles, Status: "moving"})
 	for _, sourcePath := range request.FilePaths {
 		destinationPath := filepath.Join(request.DestinationPath, filepath.Base(sourcePath))
-		status, err := s.moveSelectedFile(sourcePath, destinationPath)
+		var sourceRecord *dbmodel.FileRecord
+		var err error
+		if s.fileStore != nil {
+			sourceRecord, err = s.fileStore.GetByPath(context.Background(), sourcePath)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				err = nil
+			} else if err != nil {
+				err = &AppError{Code: "METADATA_READ_FAILED", Message: err.Error()}
+			}
+			if err == nil && sourceRecord != nil {
+				_, destinationErr := s.fileStore.GetByPath(context.Background(), destinationPath)
+				if destinationErr == nil {
+					err = &AppError{Code: "DESTINATION_METADATA_CONFLICT", Message: "destination already has a file record"}
+				} else if !errors.Is(destinationErr, gorm.ErrRecordNotFound) {
+					err = &AppError{Code: "METADATA_READ_FAILED", Message: destinationErr.Error()}
+				}
+			}
+		}
+		status := ""
+		if err == nil {
+			status, err = s.moveSelectedFile(sourcePath, destinationPath)
+		}
 		item := BackupItemResult{
 			SourcePath:      sourcePath,
 			DestinationPath: destinationPath,
@@ -276,7 +313,13 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 		} else {
 			result.SuccessCount++
 			if s.fileStore != nil {
-				if saveErr := s.saveFileRecord(destinationPath, result.JobID); saveErr != nil {
+				var saveErr *AppError
+				if sourceRecord != nil {
+					saveErr = s.moveFileRecord(sourceRecord.ID, destinationPath, result.JobID)
+				} else {
+					saveErr = s.saveFileRecord(destinationPath, result.JobID)
+				}
+				if saveErr != nil {
 					result.FailedCount++
 					result.SuccessCount--
 					item.Status = "failed"
@@ -308,15 +351,22 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 	return result, nil
 }
 
+func (s *DriveService) moveFileRecord(id int32, destinationPath string, jobID int64) *AppError {
+	info, err := os.Stat(destinationPath)
+	if err != nil {
+		return &AppError{Code: "DATABASE_UPDATE_FAILED", Message: err.Error()}
+	}
+	if err := s.fileStore.MovePath(context.Background(), id, destinationPath, int32(jobID), int32(info.Size()), info.ModTime()); err != nil {
+		return &AppError{Code: "DATABASE_UPDATE_FAILED", Message: err.Error()}
+	}
+	return nil
+}
+
 // moveSelectedFile เพิ่มมาเพื่อข้าม Active Record แม้ไฟล์ปลายทางจริงจะหายไปแล้ว.
 func (s *DriveService) moveSelectedFile(sourcePath, destinationPath string) (string, error) {
 	if s.fileStore != nil {
-		record, err := s.fileStore.GetByPath(context.Background(), destinationPath)
-		if err == nil && record.Status == repository.FileRecordStatusActive {
-			return backup.MoveStatusSkipped, nil
-		}
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", &AppError{Code: "METADATA_READ_FAILED", Message: err.Error()}
+		if _, err := os.Stat(destinationPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return "", &AppError{Code: "FILE_STATUS_CHECK_FAILED", Message: err.Error()}
 		}
 	}
 	return backup.MoveFile(sourcePath, destinationPath)
@@ -403,6 +453,8 @@ func cleanPath(path string) string {
 func toAppError(err error) *AppError {
 	appError := &AppError{Code: "INTERNAL_ERROR", Message: err.Error()}
 	switch typedError := err.(type) {
+	case *AppError:
+		return typedError
 	case *backup.PathError:
 		appError.Code = typedError.Code
 		appError.Message = typedError.Message

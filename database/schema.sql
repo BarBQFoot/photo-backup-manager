@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS file_records (
         CHECK (status IN ('active', 'missing', 'deleted'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_file_records_path ON file_records(path);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_file_records_path_unique ON file_records(path);
 CREATE INDEX IF NOT EXISTS idx_file_records_status ON file_records(status);
 CREATE INDEX IF NOT EXISTS idx_backup_jobs_destination_started
     ON backup_jobs(destination, started_at);
