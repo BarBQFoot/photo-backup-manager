@@ -6,6 +6,8 @@ import (
 
 	"photo-backup-manager/repository"
 
+	"github.com/joho/godotenv"
+
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -15,7 +17,11 @@ import (
 var assets embed.FS
 
 func main() {
-	// Open the database and apply schema migrations before showing the window.
+
+	if err := godotenv.Load(); err != nil {
+		log.Printf("ไม่พบไฟล์ .env: %v", err)
+	}
+
 	db, err := repository.NewDbConnection()
 	if err != nil {
 		log.Fatalf("initialize database: %v", err)
