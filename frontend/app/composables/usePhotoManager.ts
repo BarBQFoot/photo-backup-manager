@@ -91,25 +91,45 @@ export function usePhotoManager() {
     })
   }
 
+  async function analyzeFile(file: DriveFile) {
+    const update = (changes: Partial<DriveFile>) => {
+      const index = state.files.findIndex(item => item.path === file.path)
+      if (index >= 0) state.files[index] = { ...state.files[index]!, ...changes }
+      if (state.detail?.path === file.path) state.detail = { ...state.detail, ...changes }
+    }
+    update({ aiStatus: 'analyzing' })
+    try {
+      const result = await desktop.analyzeImage(file.fileId!)
+      update({ description: result.description, aiStatus: 'analyzed' })
+    } catch (error) {
+      update({ aiStatus: 'failed' })
+      throw error
+    }
+  }
+
+  async function analyzeSelected(paths: string[]) {
+    const selectedPaths = new Set(paths)
+    const files = state.files.filter(file => selectedPaths.has(file.path) && file.fileId && file.fileStatus === 'available' && file.aiStatus !== 'analyzing')
+    if (!files.length) return
+    await run('กำลังวิเคราะห์รูปที่เลือก', async () => {
+      let succeeded = 0
+      const failures: string[] = []
+      for (const [index, file] of files.entries()) {
+        state.busy = `กำลังวิเคราะห์ ${index + 1}/${files.length} รูป`
+        try { await analyzeFile(file); succeeded++ }
+        catch (error) { failures.push(`${file.fileName}: ${errorText(error)}`) }
+      }
+      state.notice = `วิเคราะห์สำเร็จ ${succeeded}/${files.length} รูป${failures.length ? ` ไม่สำเร็จ ${failures.length} รูป` : ''}`
+      if (failures.length) state.error = failures.join('\n')
+    })
+  }
+
   async function analyze() {
     const file = state.detail
     if (!file?.fileId || file.fileStatus === 'missing') return
     await run('กำลังวิเคราะห์รูป', async () => {
-      const index = state.files.findIndex(item => item.path === file.path)
-      const current = index >= 0 ? state.files[index] : undefined
-      if (current) state.files[index] = { ...current, aiStatus: 'analyzing' }
-      state.detail = { ...file, aiStatus: 'analyzing' }
-      try {
-        const result = await desktop.analyzeImage(file.fileId!)
-        const updated = { ...file, description: result.description, aiStatus: 'analyzed' }
-        if (index >= 0) state.files[index] = updated
-        state.detail = updated
-        state.notice = 'วิเคราะห์รูปและบันทึกคำอธิบายแล้ว'
-      } catch (error) {
-        if (current) state.files[index] = { ...current, aiStatus: 'failed' }
-        state.detail = { ...file, aiStatus: 'failed' }
-        throw error
-      }
+      await analyzeFile(file)
+      state.notice = 'วิเคราะห์รูปและบันทึกคำอธิบายแล้ว'
     })
   }
 
@@ -127,7 +147,7 @@ export function usePhotoManager() {
     })
   }
 
-  return { state, choose, scanSource, refresh, move, showDetail, analyze, remove }
+  return { state, choose, scanSource, refresh, move, showDetail, analyze, analyzeSelected, remove }
 }
 
 export type PhotoManager = ReturnType<typeof usePhotoManager>
