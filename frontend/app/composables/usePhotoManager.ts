@@ -20,7 +20,6 @@ export function usePhotoManager() {
   }
 
   async function refreshDestination() {
-    // Keep independently successful results even if the other request fails.
     const results = await Promise.allSettled([desktop.scan(state.destination), desktop.history(state.destination)])
     if (results[0].status === 'fulfilled') {
       state.files = results[0].value
@@ -73,7 +72,6 @@ export function usePhotoManager() {
       } finally {
         state.progress = { ...state.progress, status: 'idle' }
         state.selected = []
-        // A failed request can still have moved files; never leave an old selection active.
         const scan = await Promise.allSettled([desktop.scan(state.source), refreshDestination()])
         if (scan[0].status === 'fulfilled') { state.sourceFiles = scan[0].value; state.sourceScanned = true }
         const failed = scan.find(item => item.status === 'rejected')
@@ -93,6 +91,28 @@ export function usePhotoManager() {
     })
   }
 
+  async function analyze() {
+    const file = state.detail
+    if (!file?.fileId || file.fileStatus === 'missing') return
+    await run('กำลังวิเคราะห์รูป', async () => {
+      const index = state.files.findIndex(item => item.path === file.path)
+      const current = index >= 0 ? state.files[index] : undefined
+      if (current) state.files[index] = { ...current, aiStatus: 'analyzing' }
+      state.detail = { ...file, aiStatus: 'analyzing' }
+      try {
+        const result = await desktop.analyzeImage(file.fileId!)
+        const updated = { ...file, description: result.description, aiStatus: 'analyzed' }
+        if (index >= 0) state.files[index] = updated
+        state.detail = updated
+        state.notice = 'วิเคราะห์รูปและบันทึกคำอธิบายแล้ว'
+      } catch (error) {
+        if (current) state.files[index] = { ...current, aiStatus: 'failed' }
+        state.detail = { ...file, aiStatus: 'failed' }
+        throw error
+      }
+    })
+  }
+
   async function remove(file: DriveFile) {
     if (!file.fileId || file.fileStatus === 'missing') return
     await run('กำลังลบไฟล์', async () => {
@@ -107,7 +127,7 @@ export function usePhotoManager() {
     })
   }
 
-  return { state, choose, scanSource, refresh, move, showDetail, remove }
+  return { state, choose, scanSource, refresh, move, showDetail, analyze, remove }
 }
 
 export type PhotoManager = ReturnType<typeof usePhotoManager>

@@ -7,7 +7,6 @@ const manager = useSharedPhotoManager()
 const state = manager.state
 const query = ref('')
 
-// Filter real scan metadata until SearchImages is available in the backend.
 const filtered = computed(() => {
   const term = query.value.trim().toLocaleLowerCase('th')
   if (!term) return state.files
@@ -42,7 +41,7 @@ const emptyTitle = computed(() => {
           :disabled="!state.destination || !!state.busy"
         />
       </div>
-      <p class="helper">ค้นจากคำอธิบายที่โหลดแล้วในโฟลเดอร์นี้ · การวิเคราะห์รูปด้วย AI ยังไม่พร้อมใช้งาน</p>
+      <p class="helper">ค้นจากคำอธิบายที่โหลดแล้วในโฟลเดอร์ที่เลือก</p>
     </section>
 
     <div class="gallery-layout">
@@ -96,10 +95,15 @@ const emptyTitle = computed(() => {
             <dt>สถานะ AI</dt><dd>{{ aiLabel(state.detail.aiStatus) }}</dd>
             <dt>คำอธิบายภาพ</dt><dd class="description">{{ state.detail.description || 'ยังไม่มีคำอธิบายสำหรับรูปนี้' }}</dd>
           </dl>
-          <button class="button primary full-width" disabled>
+          <!-- ปุ่มวิเคราะห์รูปด้วย AI -->
+          <button
+            class="button primary full-width"
+            :disabled="state.detail.fileStatus === 'missing' || state.detail.aiStatus === 'analyzing' || !!state.busy"
+            @click="manager.analyze()"
+          >
             <AppIcon name="sparkle" />{{ state.detail.aiStatus === 'analyzing' ? 'กำลังวิเคราะห์…' : state.detail.aiStatus === 'failed' ? 'ลองวิเคราะห์อีกครั้ง' : 'วิเคราะห์รูปด้วย AI' }}
           </button>
-          <p class="helper">บริการวิเคราะห์รูปยังไม่พร้อมใช้งาน</p>
+          <p class="helper">ภาพจะถูกอ่านโดย Go และส่งให้ Gemini</p>
         </template>
       </aside>
     </div>

@@ -4,6 +4,8 @@ import {service} from '../models';
 import {backup} from '../models';
 import {context} from '../models';
 
+export function AnalyzeImage(arg1:number):Promise<service.AIResult>;
+
 export function DeleteFile(arg1:number,arg2:string):Promise<service.DeleteResult>;
 
 export function GetBackupHistory(arg1:string):Promise<Array<service.BackupJob>>;

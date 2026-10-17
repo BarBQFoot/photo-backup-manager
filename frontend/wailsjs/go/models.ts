@@ -33,6 +33,22 @@ export namespace backup {
 
 export namespace service {
 	
+	export class AIResult {
+	    fileId: number;
+	    description: string;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fileId = source["fileId"];
+	        this.description = source["description"];
+	        this.status = source["status"];
+	    }
+	}
 	export class AppError {
 	    code: string;
 	    message: string;
