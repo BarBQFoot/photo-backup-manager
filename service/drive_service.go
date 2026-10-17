@@ -12,7 +12,7 @@ import (
 	"photo-backup-manager/internal/backup"
 	dbmodel "photo-backup-manager/model/model"
 	"photo-backup-manager/repository"
-
+	
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm"
 )
@@ -24,6 +24,7 @@ type DriveService struct {
 	jobStore   repository.BackupJobStore
 	wailsCtx   context.Context
 	emitEvent  func(context.Context, string, ...interface{})
+	aiAnalyzer AIAnalyzer
 }
 
 type AppError struct {
@@ -102,8 +103,9 @@ type DeleteResult struct {
 
 func NewDriveService() *DriveService {
 	return &DriveService{
-		progress:  BackupProgress{Status: "idle"},
-		emitEvent: wailsRuntime.EventsEmit,
+		progress:   BackupProgress{Status: "idle"},
+		emitEvent:  wailsRuntime.EventsEmit,
+		aiAnalyzer: NewGeminiAnalyzerFromEnv(),
 	}
 }
 
@@ -178,6 +180,62 @@ func (s *DriveService) SetWailsContext(ctx context.Context) {
 	s.progressMu.Lock()
 	s.wailsCtx = ctx
 	s.progressMu.Unlock()
+}
+
+// ตั้งค่า	AI  สำหรับการวิเคราะห์รูปภาพ.
+func (s *DriveService) setAIAnalyzer(analyzer AIAnalyzer) {
+	s.aiAnalyzer = analyzer
+}
+
+type AIResult struct {
+	FileID      int64  `json:"fileId"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+}
+
+// อ่านรูปภาพด้วย AI และบันทึกคำอธิบายลงใน Metadata ของไฟล์.
+func (s *DriveService) AnalyzeImage(fileID int64) (AIResult, error) {
+	if s.fileStore == nil || s.aiAnalyzer == nil {
+		return AIResult{}, &AppError{Code: "AI_UNAVAILABLE", Message: "AI analyzer is unavailable"}
+	}
+	ctx := context.Background()
+	record, err := s.fileStore.GetByID(ctx, int32(fileID))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return AIResult{}, &AppError{Code: "FILE_NOT_FOUND", Message: "file metadata was not found"}
+		}
+		return AIResult{}, &AppError{Code: "FILE_NOT_FOUND", Message: "file metadata could not be read"}
+	}
+	if record.Status != repository.FileRecordStatusActive {
+		if record.Status == repository.FileRecordStatusMissing {
+			return AIResult{}, &AppError{Code: "FILE_MISSING", Message: "image file is missing"}
+		}
+		return AIResult{}, &AppError{Code: "FILE_NOT_FOUND", Message: "file is not available for analysis"}
+	}
+	if _, err := os.Stat(record.Path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return AIResult{}, &AppError{Code: "FILE_MISSING", Message: "image file is missing"}
+		}
+		return AIResult{}, &AppError{Code: "AI_UNAVAILABLE", Message: "image file could not be accessed"}
+	}
+	if err := s.fileStore.UpdateDescription(ctx, record.ID, record.Description, repository.AIStatusAnalyzing); err != nil {
+		return AIResult{}, &AppError{Code: "AI_SAVE_FAILED", Message: "could not mark image as analyzing"}
+	}
+
+	description, err := s.aiAnalyzer.Analyze(ctx, record.Path, record.MimeType)
+	if err != nil {
+		code := "AI_UNAVAILABLE"
+		var aiErr *AIError
+		if errors.As(err, &aiErr) {
+			code = aiErr.Code
+		}
+		_ = s.fileStore.UpdateDescription(ctx, record.ID, record.Description, repository.AIStatusFailed)
+		return AIResult{}, &AppError{Code: code, Message: err.Error()}
+	}
+	if err := s.fileStore.UpdateDescription(ctx, record.ID, description, repository.AIStatusAnalyzed); err != nil {
+		return AIResult{}, &AppError{Code: "AI_SAVE_FAILED", Message: "could not save AI description"}
+	}
+	return AIResult{FileID: fileID, Description: description, Status: "success"}, nil
 }
 
 // GetFileMetadata อ่าน Metadata ของไฟล์จาก Repository ด้วย File ID.

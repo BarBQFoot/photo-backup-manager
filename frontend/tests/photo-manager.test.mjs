@@ -18,6 +18,31 @@ registerHooks({
 const { usePhotoManager } = await import('../app/composables/usePhotoManager.ts')
 
 const photo = { fileId: 1, fileName: 'cat.jpg', path: 'D:/Photos/cat.jpg', sizeBytes: 100, mimeType: 'image/jpeg', modifiedAt: '', fileStatus: 'available', aiStatus: 'unanalyzed' }
+
+test('batch analysis continues after failure and excludes missing, unregistered and unselected files', async () => {
+  const attempted = []
+  const { manager, s } = setup({ AnalyzeImage: async id => {
+    attempted.push(id)
+    if (id === 1) throw new Error('AI unavailable')
+    return { fileId: id, description: 'ภาพแมว', status: 'success' }
+  } })
+  s.files = [photo,
+    { ...photo, fileId: 2, path: 'second.jpg' },
+    { ...photo, fileId: 3, path: 'missing.jpg', fileStatus: 'missing' },
+    { ...photo, fileId: null, path: 'unregistered.jpg' },
+    { ...photo, fileId: 4, path: 'unselected.jpg' },
+  ]
+  s.detail = s.files[1]
+  await manager.analyzeSelected([photo.path, 'second.jpg', 'missing.jpg', 'unregistered.jpg', photo.path])
+  assert.deepEqual(attempted, [1, 2])
+  assert.equal(s.files[0].aiStatus, 'failed')
+  assert.equal(s.files[1].description, 'ภาพแมว')
+  assert.equal(s.detail.fileId, 2)
+  assert.equal(s.detail.aiStatus, 'analyzed')
+  assert.match(s.notice, /1\/2/)
+  assert.match(s.error, /AI unavailable/)
+  assert.equal(s.busy, '')
+})
 function setup(overrides = {}) {
   const calls = []
   globalThis.window = { go: {

@@ -20,7 +20,6 @@ export function usePhotoManager() {
   }
 
   async function refreshDestination() {
-    // Keep independently successful results even if the other request fails.
     const results = await Promise.allSettled([desktop.scan(state.destination), desktop.history(state.destination)])
     if (results[0].status === 'fulfilled') {
       state.files = results[0].value
@@ -73,7 +72,6 @@ export function usePhotoManager() {
       } finally {
         state.progress = { ...state.progress, status: 'idle' }
         state.selected = []
-        // A failed request can still have moved files; never leave an old selection active.
         const scan = await Promise.allSettled([desktop.scan(state.source), refreshDestination()])
         if (scan[0].status === 'fulfilled') { state.sourceFiles = scan[0].value; state.sourceScanned = true }
         const failed = scan.find(item => item.status === 'rejected')
@@ -93,6 +91,48 @@ export function usePhotoManager() {
     })
   }
 
+  async function analyzeFile(file: DriveFile) {
+    const update = (changes: Partial<DriveFile>) => {
+      const index = state.files.findIndex(item => item.path === file.path)
+      if (index >= 0) state.files[index] = { ...state.files[index]!, ...changes }
+      if (state.detail?.path === file.path) state.detail = { ...state.detail, ...changes }
+    }
+    update({ aiStatus: 'analyzing' })
+    try {
+      const result = await desktop.analyzeImage(file.fileId!)
+      update({ description: result.description, aiStatus: 'analyzed' })
+    } catch (error) {
+      update({ aiStatus: 'failed' })
+      throw error
+    }
+  }
+
+  async function analyzeSelected(paths: string[]) {
+    const selectedPaths = new Set(paths)
+    const files = state.files.filter(file => selectedPaths.has(file.path) && file.fileId && file.fileStatus === 'available' && file.aiStatus !== 'analyzing')
+    if (!files.length) return
+    await run('กำลังวิเคราะห์รูปที่เลือก', async () => {
+      let succeeded = 0
+      const failures: string[] = []
+      for (const [index, file] of files.entries()) {
+        state.busy = `กำลังวิเคราะห์ ${index + 1}/${files.length} รูป`
+        try { await analyzeFile(file); succeeded++ }
+        catch (error) { failures.push(`${file.fileName}: ${errorText(error)}`) }
+      }
+      state.notice = `วิเคราะห์สำเร็จ ${succeeded}/${files.length} รูป${failures.length ? ` ไม่สำเร็จ ${failures.length} รูป` : ''}`
+      if (failures.length) state.error = failures.join('\n')
+    })
+  }
+
+  async function analyze() {
+    const file = state.detail
+    if (!file?.fileId || file.fileStatus === 'missing') return
+    await run('กำลังวิเคราะห์รูป', async () => {
+      await analyzeFile(file)
+      state.notice = 'วิเคราะห์รูปและบันทึกคำอธิบายแล้ว'
+    })
+  }
+
   async function remove(file: DriveFile) {
     if (!file.fileId || file.fileStatus === 'missing') return
     await run('กำลังลบไฟล์', async () => {
@@ -107,7 +147,7 @@ export function usePhotoManager() {
     })
   }
 
-  return { state, choose, scanSource, refresh, move, showDetail, remove }
+  return { state, choose, scanSource, refresh, move, showDetail, analyze, analyzeSelected, remove }
 }
 
 export type PhotoManager = ReturnType<typeof usePhotoManager>

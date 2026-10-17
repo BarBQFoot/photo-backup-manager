@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { useSharedPhotoManager } from '../composables/useSharedPhotoManager'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import type { DriveFile } from '../services/desktop'
 import { aiLabel, formatBytes, formatDate } from '../composables/usePhotoManager'
 
 const manager = useSharedPhotoManager()
 const state = manager.state
 const query = ref('')
+const selectedPaths = ref<string[]>([])
+const canAnalyze = (file: DriveFile) => !!file.fileId && file.fileStatus === 'available' && file.aiStatus !== 'analyzing'
+const selectedFiles = computed(() => filtered.value.filter(file => canAnalyze(file) && selectedPaths.value.includes(file.path)))
+watch(() => state.destination, () => { selectedPaths.value = [] })
 
-// Filter real scan metadata until SearchImages is available in the backend.
+function selectVisible() {
+  selectedPaths.value = filtered.value.filter(canAnalyze).map(file => file.path)
+}
+
 const filtered = computed(() => {
   const term = query.value.trim().toLocaleLowerCase('th')
   if (!term) return state.files
@@ -42,7 +50,19 @@ const emptyTitle = computed(() => {
           :disabled="!state.destination || !!state.busy"
         />
       </div>
-      <p class="helper">ค้นจากคำอธิบายที่โหลดแล้วในโฟลเดอร์นี้ · การวิเคราะห์รูปด้วย AI ยังไม่พร้อมใช้งาน</p>
+      <p class="helper">ค้นจากคำอธิบายที่โหลดแล้วในโฟลเดอร์ที่เลือก</p>
+    </section>
+
+    <section v-if="state.files.length" class="surface ai-selection" aria-label="เลือกรูปสำหรับ AI">
+      <div class="toolbar">
+        <strong>เลือกวิเคราะห์ AI {{ selectedFiles.length }} รูป</strong>
+        <button class="button secondary" :disabled="!!state.busy || !filtered.some(canAnalyze)" @click="selectVisible">เลือกทั้งหมดที่แสดง</button>
+        <button class="text-button" :disabled="!!state.busy || !selectedPaths.length" @click="selectedPaths = []">ล้างการเลือก</button>
+        <button class="button primary" :disabled="!!state.busy || !selectedFiles.length" @click="manager.analyzeSelected(selectedFiles.map(file => file.path))">
+          <AppIcon name="sparkle" />วิเคราะห์รูปที่เลือก
+        </button>
+      </div>
+      <p class="helper" role="status">{{ state.busy.startsWith('กำลังวิเคราะห์') ? state.busy : 'เลือกช่องบนรูปที่ต้องการ ระบบจะวิเคราะห์ทีละรูปและบันทึกคำอธิบายให้แต่ละรูป' }}</p>
     </section>
 
     <div class="gallery-layout">
@@ -54,11 +74,18 @@ const emptyTitle = computed(() => {
           <button v-if="query" class="button secondary" @click="query = ''">ล้างคำค้น</button>
         </div>
         <div v-else class="photo-grid">
-          <button
+          <div
             v-for="file in filtered"
             :key="file.path"
             class="photo-card"
-            :class="{ selected: state.detail?.path === file.path }"
+            :class="{ selected: selectedPaths.includes(file.path) || state.detail?.path === file.path }"
+          >
+            <label class="ai-checkbox">
+              <input v-model="selectedPaths" type="checkbox" :value="file.path" :disabled="!!state.busy || !canAnalyze(file)" :aria-label="`เลือก ${file.fileName} เพื่อวิเคราะห์ AI`" />
+              เลือกวิเคราะห์ AI
+            </label>
+            <button
+            class="photo-detail-button"
             :disabled="!!state.busy"
             :aria-pressed="state.detail?.path === file.path"
             @click="manager.showDetail(file)"
@@ -73,6 +100,7 @@ const emptyTitle = computed(() => {
               <small>{{ aiLabel(file.aiStatus) }}</small>
             </div>
           </button>
+          </div>
         </div>
       </section>
 
@@ -96,12 +124,24 @@ const emptyTitle = computed(() => {
             <dt>สถานะ AI</dt><dd>{{ aiLabel(state.detail.aiStatus) }}</dd>
             <dt>คำอธิบายภาพ</dt><dd class="description">{{ state.detail.description || 'ยังไม่มีคำอธิบายสำหรับรูปนี้' }}</dd>
           </dl>
-          <button class="button primary full-width" disabled>
+          <!-- ปุ่มวิเคราะห์รูปด้วย AI -->
+          <button
+            class="button primary full-width"
+            :disabled="!canAnalyze(state.detail) || !!state.busy"
+            @click="manager.analyze()"
+          >
             <AppIcon name="sparkle" />{{ state.detail.aiStatus === 'analyzing' ? 'กำลังวิเคราะห์…' : state.detail.aiStatus === 'failed' ? 'ลองวิเคราะห์อีกครั้ง' : 'วิเคราะห์รูปด้วย AI' }}
           </button>
-          <p class="helper">บริการวิเคราะห์รูปยังไม่พร้อมใช้งาน</p>
+          <p class="helper">ภาพจะถูกอ่านโดย Go และส่งให้ Gemini</p>
         </template>
       </aside>
     </div>
   </div>
 </template>
+
+<style scoped>
+.ai-selection { margin-bottom: 20px; }
+.ai-checkbox { display: flex; align-items: center; gap: 8px; padding: 10px; font-size: 12px; }
+.ai-checkbox input { width: 18px; height: 18px; }
+.photo-detail-button { display: block; width: 100%; padding: 0; border: 0; background: transparent; text-align: left; color: inherit; }
+</style>
