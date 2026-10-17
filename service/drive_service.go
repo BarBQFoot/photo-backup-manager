@@ -12,12 +12,14 @@ import (
 	"photo-backup-manager/internal/backup"
 	dbmodel "photo-backup-manager/model/model"
 	"photo-backup-manager/repository"
-	
+
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm"
 )
 
 type DriveService struct {
+	previewMu  sync.RWMutex
+	previews   map[string]photoPreview
 	progressMu sync.RWMutex
 	progress   BackupProgress
 	fileStore  repository.FileRecordStore
@@ -119,6 +121,9 @@ func NewDriveServiceWithRepositories(fileStore repository.FileRecordStore, jobSt
 func (s *DriveService) ScanDrive(path string) ([]backup.DriveFile, error) {
 	files, err := backup.ScanDrive(path)
 	if err != nil || s.fileStore == nil {
+		if err == nil {
+			s.registerPreviews(files)
+		}
 		return files, err
 	}
 
@@ -172,6 +177,7 @@ func (s *DriveService) ScanDrive(path string) ([]backup.DriveFile, error) {
 			AIStatus: record.AiStatus, Description: record.Description,
 		})
 	}
+	s.registerPreviews(files)
 	return files, nil
 }
 

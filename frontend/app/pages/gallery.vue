@@ -90,10 +90,7 @@ const emptyTitle = computed(() => {
             :aria-pressed="state.detail?.path === file.path"
             @click="manager.showDetail(file)"
           >
-            <div class="photo-placeholder" :class="{ missing: file.fileStatus === 'missing' }">
-              <AppIcon :name="file.fileStatus === 'missing' ? 'info' : 'image'" />
-              <small>{{ file.fileStatus === 'missing' ? 'ไม่พบไฟล์จริง' : 'ยังไม่มีภาพตัวอย่าง' }}</small>
-            </div>
+            <PhotoPreview :path="file.path" :name="file.fileName" :status="file.fileStatus" :modified-at="file.modifiedAt" />
             <div class="photo-caption">
               <strong>{{ file.fileName }}</strong>
               <span class="badge" :class="{ warning: file.fileStatus === 'missing' }">{{ file.fileStatus === 'missing' ? 'ไฟล์หาย' : 'ไฟล์อยู่ในไดรฟ์' }}</span>
@@ -116,7 +113,7 @@ const emptyTitle = computed(() => {
         <template v-else>
           <h3>{{ state.detail.fileName }}</h3>
           <p v-if="state.detail.fileStatus === 'missing'" class="notice warning">ไฟล์หายจากปลายทาง ไม่สามารถเปิดภาพตัวอย่างหรือวิเคราะห์ได้</p>
-          <p v-else class="notice neutral">ภาพตัวอย่างยังไม่พร้อมใช้งาน</p>
+          <PhotoPreview v-else :path="state.detail.path" :name="state.detail.fileName" :status="state.detail.fileStatus" :modified-at="state.detail.modifiedAt" detail />
           <dl>
             <dt>ตำแหน่งไฟล์</dt><dd class="path">{{ state.detail.path }}</dd>
             <dt>ขนาด / ชนิด</dt><dd>{{ formatBytes(state.detail.sizeBytes) }} · {{ state.detail.mimeType }}</dd>
