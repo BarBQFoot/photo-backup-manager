@@ -79,10 +79,10 @@ function move() {
         <p>{{ state.sourceScanned ? 'ลองเลือกโฟลเดอร์อื่น แล้วสแกนอีกครั้ง' : 'เลือกโฟลเดอร์ต้นทาง แล้วกดสแกนรูปภาพเพื่อเริ่มต้น' }}</p>
       </div>
       <div v-else class="file-list">
-        <label v-for="file in state.sourceFiles" :key="file.path" class="file-row">
-          <input v-model="state.selected" type="checkbox" :value="file.path" :disabled="file.fileStatus !== 'available' || !!state.busy" />
-          <span class="file-symbol"><AppIcon name="image" /></span>
-          <span class="file-info"><strong>{{ file.fileName }}</strong><small class="path">{{ file.path }}</small></span>
+        <label v-for="file in state.sourceFiles" :key="file.path" class="file-row source-photo-row">
+          <input v-model="state.selected" type="checkbox" :value="file.path" :disabled="file.fileStatus !== 'available' || !!state.busy" :aria-label="`เลือกย้าย ${file.fileName}`" />
+          <PhotoPreview class="source-thumbnail" :path="file.path" :name="file.fileName" :status="file.fileStatus" :modified-at="file.modifiedAt" />
+          <span class="file-info"><strong>{{ file.fileName }}</strong><small class="path source-file-path">{{ file.path }}</small></span>
           <span class="muted">{{ formatBytes(file.sizeBytes) }}</span>
           <span class="badge" :class="{ warning: file.fileStatus === 'missing' }">{{ file.fileStatus === 'missing' ? 'ไฟล์หาย' : 'พร้อมย้าย' }}</span>
         </label>
@@ -97,3 +97,11 @@ function move() {
     </ConfirmDialog>
   </div>
 </template>
+
+<style scoped>
+.source-thumbnail { width: 120px; flex-shrink: 0; border-radius: 8px; }
+.source-file-path { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .source-thumbnail { width: 88px; }
+}
+</style>
