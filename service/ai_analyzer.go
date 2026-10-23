@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	geminiModel       = "gemini-2.5-flash"
+	geminiModel       = "gemini-3.5-flash"
 	maxImageSizeBytes = 10 << 20
 )
 
@@ -121,7 +121,7 @@ func readImage(path, declaredMIME string) ([]byte, string, error) {
 		mimeType = http.DetectContentType(data)
 	}
 	switch mimeType {
-	case "image/jpeg", "image/png", "image/webp", "image/gif":
+	case "image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp", "image/tiff", "image/avif":
 		return data, mimeType, nil
 	default:
 		return nil, "", &AIError{Code: "UNSUPPORTED_IMAGE", Err: errors.New("image type is not supported")}
