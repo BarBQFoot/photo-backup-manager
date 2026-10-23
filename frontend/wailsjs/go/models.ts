@@ -33,6 +33,20 @@ export namespace backup {
 
 export namespace service {
 	
+	export class AIFailure {
+	    fileId: number;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIFailure(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fileId = source["fileId"];
+	        this.message = source["message"];
+	    }
+	}
 	export class AIResult {
 	    fileId: number;
 	    description: string;
@@ -47,6 +61,68 @@ export namespace service {
 	        this.fileId = source["fileId"];
 	        this.description = source["description"];
 	        this.status = source["status"];
+	    }
+	}
+	export class AIBatchResult {
+	    results: AIResult[];
+	    failures: AIFailure[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AIBatchResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.results = this.convertValues(source["results"], AIResult);
+	        this.failures = this.convertValues(source["failures"], AIFailure);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	export class AISetupStatus {
+	    status: string;
+	    phase: string;
+	    detail: string;
+	    completed: number;
+	    total: number;
+	    unit: string;
+	    device: string;
+	    error: string;
+	    skipped: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AISetupStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.phase = source["phase"];
+	        this.detail = source["detail"];
+	        this.completed = source["completed"];
+	        this.total = source["total"];
+	        this.unit = source["unit"];
+	        this.device = source["device"];
+	        this.error = source["error"];
+	        this.skipped = source["skipped"];
 	    }
 	}
 	export class AppError {

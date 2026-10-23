@@ -3,6 +3,9 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
+	"path/filepath"
+	"runtime"
 
 	"photo-backup-manager/repository"
 	"photo-backup-manager/service"
@@ -21,6 +24,18 @@ func main() {
 
 	if err := godotenv.Load(); err != nil {
 		log.Printf("ไม่พบไฟล์ .env: %v", err)
+	}
+	if executable, err := os.Executable(); err == nil {
+		// An exported app can be launched with any working directory.
+		for _, path := range appEnvPaths(executable, runtime.GOOS) {
+			_ = godotenv.Load(path)
+		}
+	}
+	if config, err := os.UserConfigDir(); err == nil {
+		_ = godotenv.Load(filepath.Join(config, "photo-backup-manager", ".env"))
+	}
+	if err := configureAppStorage(); err != nil {
+		log.Fatalf("prepare app storage: %v", err)
 	}
 
 	db, err := repository.NewDbConnection()
@@ -46,6 +61,7 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,
+		OnShutdown:       app.shutdown,
 		Bind: []interface{}{
 			app,
 			app.driveService,

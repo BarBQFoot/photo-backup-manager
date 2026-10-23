@@ -15,7 +15,16 @@ frontend/dist/
 .env.*
 
 # Database
-data/
+/data/
 *.db
 *.sqlite
 *.sqlite3
+
+# Local image analysis environments, downloaded data and generated results
+/.venv/
+/.download-cache/
+/test-images/
+/results/
+/runs/
+__pycache__/
+*.pyc

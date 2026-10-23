@@ -70,6 +70,7 @@ export function usePhotoManager() {
       try {
         state.result = await desktop.backup({ sourcePath: state.source, destinationPath: state.destination, filePaths: [...state.selected] })
       } finally {
+        state.busy = 'กำลังอัปเดตรายการหลังย้าย'
         state.progress = { ...state.progress, status: 'idle' }
         state.selected = []
         const scan = await Promise.allSettled([desktop.scan(state.source), refreshDestination()])
@@ -91,46 +92,59 @@ export function usePhotoManager() {
     })
   }
 
-  async function analyzeFile(file: DriveFile) {
-    const update = (changes: Partial<DriveFile>) => {
-      const index = state.files.findIndex(item => item.path === file.path)
-      if (index >= 0) state.files[index] = { ...state.files[index]!, ...changes }
-      if (state.detail?.path === file.path) state.detail = { ...state.detail, ...changes }
-    }
-    update({ aiStatus: 'analyzing' })
-    try {
-      const result = await desktop.analyzeImage(file.fileId!)
-      update({ description: result.description, aiStatus: 'analyzed' })
-    } catch (error) {
-      update({ aiStatus: 'failed' })
-      throw error
-    }
-  }
-
   async function analyzeSelected(paths: string[]) {
     const selectedPaths = new Set(paths)
     const files = state.files.filter(file => selectedPaths.has(file.path) && file.fileId && file.fileStatus === 'available' && file.aiStatus !== 'analyzing')
     if (!files.length) return
     await run('กำลังวิเคราะห์รูปที่เลือก', async () => {
-      let succeeded = 0
-      const failures: string[] = []
-      for (const [index, file] of files.entries()) {
-        state.busy = `กำลังวิเคราะห์ ${index + 1}/${files.length} รูป`
-        try { await analyzeFile(file); succeeded++ }
-        catch (error) { failures.push(`${file.fileName}: ${errorText(error)}`) }
+      const selectedIds = new Set(files.map(file => file.fileId!))
+      const update = (id: number, changes: Partial<DriveFile>) => {
+        const index = state.files.findIndex(file => file.fileId === id)
+        if (index >= 0) state.files[index] = { ...state.files[index]!, ...changes }
+        if (state.detail?.fileId === id) state.detail = { ...state.detail, ...changes }
       }
-      state.notice = `วิเคราะห์สำเร็จ ${succeeded}/${files.length} รูป${failures.length ? ` ไม่สำเร็จ ${failures.length} รูป` : ''}`
-      if (failures.length) state.error = failures.join('\n')
+      const unsubscribe = desktop.onAIProgress(event => {
+        if (event.type === 'progress' && event.phase !== 'done') {
+          state.busy = `กำลังวิเคราะห์: ${event.phase === 'captioning' ? 'อ่านภาพ' : 'แปลคำบรรยาย'} ${event.completed ?? 0}/${event.total ?? files.length} รูป`
+        }
+        if (event.type === 'result' && event.file_id && event.caption) {
+          const id = Number(event.file_id.replace(/^file_/, ''))
+          if (selectedIds.has(id)) update(id, { description: event.caption, aiStatus: 'analyzed' })
+        }
+      })
+      for (const file of files) update(file.fileId!, { aiStatus: 'analyzing' })
+      try {
+        const result = await desktop.analyzeImages(files.map(file => file.fileId!))
+        for (const item of result.results ?? []) update(item.fileId, { description: item.description, aiStatus: 'analyzed' })
+        for (const item of result.failures ?? []) update(item.fileId, { aiStatus: 'failed' })
+        state.notice = `วิเคราะห์สำเร็จ ${result.results.length}/${files.length} รูป${result.failures.length ? ` ไม่สำเร็จ ${result.failures.length} รูป กดเลือกเฉพาะรูปที่ไม่สำเร็จเพื่อทำต่อได้` : ''}`
+        if (result.failures.length) {
+          const groups = new Map<string, string[]>()
+          for (const item of result.failures) {
+            const names = groups.get(item.message) ?? []
+            names.push(files.find(file => file.fileId === item.fileId)?.fileName ?? String(item.fileId))
+            groups.set(item.message, names)
+          }
+          state.error = [...groups].map(([message, names]) => `${message}\n${names.length} รูป: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` และอีก ${names.length - 3} รูป` : ''}`).join('\n\n')
+        }
+      } finally {
+        unsubscribe()
+        // Reconcile statuses even after a bridge/network error; preserve already saved captions.
+        const results = await Promise.allSettled([desktop.scan(state.destination)])
+        if (results[0]?.status === 'fulfilled') {
+          state.files = results[0].value
+          if (state.detail) state.detail = state.files.find(file => file.fileId === state.detail?.fileId) ?? null
+        } else {
+          for (const file of state.files.filter(file => selectedIds.has(file.fileId!) && file.aiStatus === 'analyzing')) update(file.fileId!, { aiStatus: 'failed' })
+        }
+      }
     })
   }
 
   async function analyze() {
     const file = state.detail
     if (!file?.fileId || file.fileStatus === 'missing') return
-    await run('กำลังวิเคราะห์รูป', async () => {
-      await analyzeFile(file)
-      state.notice = 'วิเคราะห์รูปและบันทึกคำอธิบายแล้ว'
-    })
+    await analyzeSelected([file.path])
   }
 
   async function remove(file: DriveFile) {

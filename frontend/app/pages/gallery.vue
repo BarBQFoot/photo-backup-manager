@@ -3,27 +3,25 @@ import { useSharedPhotoManager } from '../composables/useSharedPhotoManager'
 import { computed, ref, watch } from 'vue'
 import type { DriveFile } from '../services/desktop'
 import { aiLabel, formatBytes, formatDate } from '../composables/usePhotoManager'
+import { createCaptionSearch } from '../utils/captionSearch'
 
 const manager = useSharedPhotoManager()
 const state = manager.state
 const query = ref('')
 const selectedPaths = ref<string[]>([])
+const selectedSet = computed(() => new Set(selectedPaths.value))
 const canAnalyze = (file: DriveFile) => !!file.fileId && file.fileStatus === 'available' && file.aiStatus !== 'analyzing'
-const selectedFiles = computed(() => filtered.value.filter(file => canAnalyze(file) && selectedPaths.value.includes(file.path)))
+const selectedFiles = computed(() => filtered.value.filter(file => canAnalyze(file) && selectedSet.value.has(file.path)))
 watch(() => state.destination, () => { selectedPaths.value = [] })
 
 function selectVisible() {
   selectedPaths.value = filtered.value.filter(canAnalyze).map(file => file.path)
 }
 
-const filtered = computed(() => {
-  const term = query.value.trim().toLocaleLowerCase('th')
-  if (!term) return state.files
-
-  return state.files.filter(file =>
-    file.fileStatus === 'available' && file.description?.toLocaleLowerCase('th').includes(term),
-  )
-})
+const searchIndex = computed(() => createCaptionSearch(state.files))
+const searchMatches = computed(() => searchIndex.value.search(query.value))
+const filtered = computed(() => searchMatches.value.map(match => match.item))
+const relatedCount = computed(() => searchMatches.value.filter(match => match.kind !== 'exact').length)
 
 const emptyTitle = computed(() => {
   if (!state.destination) return 'เปิดโฟลเดอร์ความทรงจำของคุณ'
@@ -50,7 +48,7 @@ const emptyTitle = computed(() => {
           :disabled="!state.destination || !!state.busy"
         />
       </div>
-      <p class="helper">ค้นจากคำอธิบายที่โหลดแล้วในโฟลเดอร์ที่เลือก</p>
+      <p class="helper" aria-live="polite">ค้นจากคำอธิบายในโฟลเดอร์นี้ รองรับคำพ้องและคำพิมพ์ผิดเล็กน้อย เรียงคำตรงก่อน<span v-if="query.trim() && relatedCount"> · รวมผลคำพ้องหรือคำใกล้เคียง {{ relatedCount }} รูป</span></p>
     </section>
 
     <section v-if="state.files.length" class="surface ai-selection" aria-label="เลือกรูปสำหรับ AI">
@@ -62,7 +60,7 @@ const emptyTitle = computed(() => {
           <AppIcon name="sparkle" />วิเคราะห์รูปที่เลือก
         </button>
       </div>
-      <p class="helper" role="status">{{ state.busy.startsWith('กำลังวิเคราะห์') ? state.busy : 'เลือกช่องบนรูปที่ต้องการ ระบบจะวิเคราะห์ทีละรูปและบันทึกคำอธิบายให้แต่ละรูป' }}</p>
+      <p class="helper" role="status">{{ state.busy.startsWith('กำลังวิเคราะห์') ? state.busy : 'เลือกภาพที่ต้องการ ระบบอ่านภาพบนเครื่อง แล้วแปลคำบรรยายครั้งละไม่เกิน 100 รูป พักระหว่างชุด 10 วินาที' }}</p>
     </section>
 
     <div class="gallery-layout">
@@ -77,8 +75,9 @@ const emptyTitle = computed(() => {
           <div
             v-for="file in filtered"
             :key="file.path"
+            v-memo="[file, file.aiStatus, file.fileStatus, selectedSet.has(file.path), state.detail?.path === file.path, !!state.busy]"
             class="photo-card"
-            :class="{ selected: selectedPaths.includes(file.path) || state.detail?.path === file.path }"
+            :class="{ selected: selectedSet.has(file.path) || state.detail?.path === file.path }"
           >
             <label class="ai-checkbox">
               <input v-model="selectedPaths" type="checkbox" :value="file.path" :disabled="!!state.busy || !canAnalyze(file)" :aria-label="`เลือก ${file.fileName} เพื่อวิเคราะห์ AI`" />
@@ -129,7 +128,7 @@ const emptyTitle = computed(() => {
           >
             <AppIcon name="sparkle" />{{ state.detail.aiStatus === 'analyzing' ? 'กำลังวิเคราะห์…' : state.detail.aiStatus === 'failed' ? 'ลองวิเคราะห์อีกครั้ง' : 'วิเคราะห์รูปด้วย AI' }}
           </button>
-          <p class="helper">ภาพจะถูกอ่านโดย Go และส่งให้ Gemini</p>
+          <p class="helper">อ่านภาพบนเครื่อง แล้วส่งเฉพาะข้อความให้ Gemini แปลเป็นไทย</p>
         </template>
       </aside>
     </div>

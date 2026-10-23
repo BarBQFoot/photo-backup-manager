@@ -9,6 +9,11 @@
 - อ่าน [เข้ามาใหม่อ่านอันนี้ก่อน](docs/เข้ามาใหม่อ่านอันนี้ก่อน.md) เพื่อเลือกอ่านตามหน้าที่
 - อ่าน [พิมพ์เขียวโครงการ](docs/00-PROJECT-BLUEPRINT.md) เพื่อดูขอบเขตและสถานะงาน
 - ดู [คู่มือติดตั้ง](docs/SETUP_GUIDE.md) เพื่อเตรียมเครื่องและรันโปรเจกต์
+- ส่วน AI ปัจจุบันใช้ **Florence อ่านภาพบนเครื่อง → Gemini แปลคำบรรยาย** ดู [วิธีรัน AI ในแอป](docs/RUN-APP-LOCAL-AI.md)
+- สำหรับ Mac ดู [ตัวติดตั้ง AI แบบดับเบิลคลิก](docs/SETUP-MAC-AI.md)
+- การค้นหาคำตรง คำพ้อง และคำพิมพ์ผิด ดู [วิธีค้นหาคำบรรยาย](docs/SEARCH.md)
+- การแจก EXE และหน้าจอเตรียม AI อัตโนมัติ ดู [เปิดแอปบน Windows](docs/RUN-WINDOWS-EXE.md)
+- การสร้าง `.app` แบบเดียวกันบน Mac ดู [Build Mac App](docs/BUILD-MAC-APP.md)
 
 ## พัฒนาและ Build
 
@@ -23,6 +28,6 @@ wails dev
 
 ## เทคโนโลยี
 
-Go · Wails v2 · Nuxt · (ตามแผน) SQLite/GORM และ Gemini
+Go · Wails v2 · Nuxt · SQLite/GORM · Python/PyTorch · Florence · Gemini
 
 

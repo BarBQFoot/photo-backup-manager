@@ -78,7 +78,7 @@ function move() {
         <h3>{{ state.sourceScanned ? 'โฟลเดอร์นี้ยังไม่มีรูปภาพ' : 'รูปภาพของคุณจะอยู่ตรงนี้' }}</h3>
         <p>{{ state.sourceScanned ? 'ลองเลือกโฟลเดอร์อื่น แล้วสแกนอีกครั้ง' : 'เลือกโฟลเดอร์ต้นทาง แล้วกดสแกนรูปภาพเพื่อเริ่มต้น' }}</p>
       </div>
-      <div v-else class="file-list">
+      <div v-else v-memo="[state.sourceFiles, state.selected, !!state.busy]" class="file-list">
         <label v-for="file in state.sourceFiles" :key="file.path" class="file-row source-photo-row">
           <input v-model="state.selected" type="checkbox" :value="file.path" :disabled="file.fileStatus !== 'available' || !!state.busy" :aria-label="`เลือกย้าย ${file.fileName}`" />
           <PhotoPreview class="source-thumbnail" :path="file.path" :name="file.fileName" :status="file.fileStatus" :modified-at="file.modifiedAt" />
