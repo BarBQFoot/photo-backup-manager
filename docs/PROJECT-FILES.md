@@ -101,7 +101,7 @@ SQLite เก็บข้อมูลประกอบรูปและคำ�
 | [`frontend/app/composables/useSharedPhotoManager.ts`](../frontend/app/composables/useSharedPhotoManager.ts) | ให้แต่ละหน้าใช้ PhotoManager ตัวเดียวกัน |
 | [`frontend/app/services/desktop.ts`](../frontend/app/services/desktop.ts) | ตัวกลางเรียก Go ผ่าน Wails และสมัครรับ events ความคืบหน้า |
 | [`frontend/app/utils/captionSearch.ts`](../frontend/app/utils/captionSearch.ts) | ค้นจากคำบรรยาย รองรับคำตรง คำพ้อง และการพิมพ์ผิดเล็กน้อย ใช้ Fuse.js ร่วมกับการตรวจระยะห่างคำและขอบเขตคำ |
-| [`frontend/app/data/searchSynonyms.json`](../frontend/app/data/searchSynonyms.json) | คลังกลุ่มคำพ้อง เช่น หมา/สุนัข ที่ตัวค้นหาอ่านมาใช้ |
+| [`frontend/app/data/searchSynonyms.json`](../frontend/app/data/searchSynonyms.json) | คลังคำพ้อง ภาษาพูด คำวัยรุ่น และรูปสะกด รวมไว้ในไฟล์เดียวที่ตัวค้นหาอ่านมาใช้ |
 | [`frontend/app/components/AISetupScreen.vue`](../frontend/app/components/AISetupScreen.vue) | หน้าจอเตรียม AI แสดงขั้นตอน ดาวน์โหลด ข้ามของที่มีแล้ว และลองใหม่เมื่อผิดพลาด |
 | [`frontend/app/components/PhotoPreview.vue`](../frontend/app/components/PhotoPreview.vue) | แสดงภาพผ่าน `/photo-preview` และข้อความเมื่อภาพหายหรือเปิดไม่ได้ |
 | [`frontend/app/components/ConfirmDialog.vue`](../frontend/app/components/ConfirmDialog.vue) | หน้าต่างยืนยันก่อนย้าย สำรอง หรือลบ |

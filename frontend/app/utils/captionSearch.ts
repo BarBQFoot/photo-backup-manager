@@ -16,14 +16,37 @@ const kindRank: Record<MatchKind, number> = { exact: 0, synonym: 1, fuzzy: 2 }
 const tokenCache = new WeakMap<SearchablePhoto, { description: string; text: string;
   boundaries: Set<number>; terms: string[] }>()
 const synonyms = new Map<string, Set<string>>()
-for (const group of synonymGroups) {
-  for (const raw of group) {
-    const word = normalize(raw)
-    const aliases = synonyms.get(word) ?? new Set<string>()
-    group.forEach(alias => aliases.add(normalize(alias)))
-    synonyms.set(word, aliases)
-  }
+const parent = new Map<string, string>()
+function root(word: string): string {
+  const previous = parent.get(word)
+  if (!previous) { parent.set(word, word); return word }
+  if (previous === word) return word
+  const found = root(previous)
+  parent.set(word, found)
+  return found
 }
+// Join the reviewed senses and aliases so น้องหมา also reaches สุนัข through หมา.
+for (const group of synonymGroups) {
+  const words = group.map(normalize).filter(Boolean)
+  if (!words.length) continue
+  for (const word of words) parent.set(root(word), root(words[0]!))
+}
+const concepts = new Map<string, Set<string>>()
+for (const word of parent.keys()) {
+  const key = root(word)
+  const aliases = concepts.get(key) ?? new Set<string>()
+  aliases.add(word)
+  concepts.set(key, aliases)
+}
+for (const aliases of concepts.values()) for (const word of aliases) synonyms.set(word, aliases)
+
+const aliasesByInitial = new Map<string, string[]>()
+for (const word of synonyms.keys()) {
+  const choices = aliasesByInitial.get(word[0]!) ?? []
+  choices.push(word)
+  aliasesByInitial.set(word[0]!, choices)
+}
+for (const choices of aliasesByInitial.values()) choices.sort((a, b) => b.length - a.length)
 
 function words(text: string): { word: string; start: number; end: number }[] {
   if (segmenter) return Array.from(segmenter.segment(text))
@@ -31,6 +54,23 @@ function words(text: string): { word: string; start: number; end: number }[] {
     .map(part => ({ word: part.segment, start: part.index, end: part.index + part.segment.length }))
   return Array.from(text.matchAll(/[\p{L}\p{M}\p{N}]+/gu))
     .map(part => ({ word: part[0], start: part.index, end: part.index + part[0].length }))
+}
+
+function queryWords(text: string) {
+  const parts = words(text)
+  const ends = new Set(parts.map(part => part.end))
+  const terms: string[] = []
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index]!
+    // Keep dictionary phrases together in multiword queries, e.g. น้องหมา คาเฟ่.
+    const alias = aliasesByInitial.get(text[part.start]!)?.find(word =>
+      text.startsWith(word, part.start) && ends.has(part.start + word.length))
+    const term = alias ?? part.word
+    const end = part.start + term.length
+    while (index + 1 < parts.length && parts[index + 1]!.start < end) index++
+    if (!stopWords.has(term)) terms.push(term)
+  }
+  return [...new Set(terms)]
 }
 
 function contains<T>(document: Document<T>, term: string) {
@@ -124,7 +164,7 @@ export function createCaptionSearch<T extends SearchablePhoto>(files: readonly T
     search(query: string): CaptionMatch<T>[] {
       const term = normalize(query)
       if (!term) return files.map(item => ({ item, kind: 'exact', score: 0 }))
-      const terms = [...new Set(words(term).map(part => part.word).filter(word => !stopWords.has(word)))]
+      const terms = queryWords(term)
       const plans = [[alternatives(term)]]
       if (terms.length > 0 && !(terms.length === 1 && terms[0] === term)) {
         plans.push(terms.map(alternatives))
