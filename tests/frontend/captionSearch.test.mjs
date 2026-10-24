@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createCaptionSearch } from '../app/utils/captionSearch.ts'
+import { createCaptionSearch } from '../../frontend/app/utils/captionSearch.ts'
 
 const photo = (id, description, fileStatus = 'available') => ({ id, description, fileStatus })
 const ids = matches => matches.map(match => match.item.id)

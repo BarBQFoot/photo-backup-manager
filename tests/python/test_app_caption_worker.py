@@ -23,7 +23,7 @@ class FakeCaptioner:
 
 class WorkerTests(unittest.TestCase):
     def setUp(self):
-        root = Path(__file__).resolve().parents[1] / 'results'
+        root = Path(__file__).resolve().parents[2] / 'results'
         root.mkdir(exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(prefix='worker-test-', dir=root)
         self.addCleanup(self.temp.cleanup)

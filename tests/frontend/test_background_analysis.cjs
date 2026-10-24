@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { pathToFileURL } = require('node:url');
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(__dirname, '../..');
 const output = path.join(root, 'frontend/.nuxt/background-analysis-test.mts');
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b) => { resolve=a; reject=b }); return {promise,resolve,reject}; };
 const photo = (id, folder='A') => ({fileId:id,fileName:`${id}.jpg`,path:`${folder}/${id}.jpg`,fileStatus:'available',aiStatus:'unanalyzed',description:''});

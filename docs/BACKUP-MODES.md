@@ -15,6 +15,6 @@
 ทดสอบหน้าจอจริงผ่าน Vue และ bridge จำลอง (ไม่มีการย้ายไฟล์จริงหรือเรียก AI):
 
 ```powershell
-node tools/test_backup_modes.cjs
-node tools/test_background_analysis.cjs
+node tests/frontend/test_backup_modes.cjs
+node tests/frontend/test_background_analysis.cjs
 ```

@@ -3,8 +3,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
-    "test:search": "node --test tests/captionSearch.test.mjs",
+    "test": "node --test ../tests/frontend/*.test.mjs ../tests/frontend/test_*.cjs",
+    "test:search": "node --test ../tests/frontend/captionSearch.test.mjs",
     "build": "nuxt generate",
     "dev": "nuxt dev",
     "generate": "nuxt generate",

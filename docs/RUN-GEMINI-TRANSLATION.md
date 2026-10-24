@@ -57,7 +57,7 @@
 ## การทดสอบ
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest tools.test_translate_captions -v
+.\.venv\Scripts\python.exe -m unittest discover -s tests/python -p test_translate_captions.py -v
 ```
 
 16 tests ใช้ provider จำลองทั้งหมด ครอบคลุม resume, merge ด้วย ID, โควตา/เวลารอ, timeout, คำตอบถูกตัด, รหัสผิด, การเปลี่ยน source, dry run ไม่ส่ง/ไม่เขียนข้อมูล, การไม่พิมพ์ Key, schema ขนาดเล็ก, รายละเอียด HTTP 400 แบบปิดบัง Key และ file lock ยังไม่ได้ทดสอบการสร้างคำตอบจาก provider สำเร็จจริงหรือรัน Mac/Linux

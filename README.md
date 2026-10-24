@@ -16,6 +16,7 @@
 - การสร้าง `.app` แบบเดียวกันบน Mac ดู [Build Mac App](docs/BUILD-MAC-APP.md)
 - การเลือกย้ายหรือสำรองแบบคัดลอก ดู [วิธีจัดเก็บรูป](docs/BACKUP-MODES.md)
 - การทำงานระหว่างรอ AI ดู [วิเคราะห์ภาพเบื้องหลัง](docs/BACKGROUND-ANALYSIS.md)
+- ตำแหน่งและคำสั่งรันชุดทดสอบ ดู [ชุดทดสอบ](tests/README.md)
 
 ## พัฒนาและ Build
 

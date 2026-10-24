@@ -37,7 +37,7 @@ class BootstrapTests(unittest.TestCase):
     def test_complete_model_fingerprint_changes_with_weight_file(self):
         versions = {name: '5.20.2' if name == 'transformers' else '1.0'
                     for name in ('torch', 'torchvision', 'transformers', 'Pillow', 'safetensors', 'huggingface_hub')}
-        test_root = Path(__file__).resolve().parents[1] / 'results'
+        test_root = Path(__file__).resolve().parents[2] / 'results'
         test_root.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='bootstrap-test-', dir=test_root) as temporary:
             folder = Path(temporary)
@@ -89,7 +89,7 @@ class BootstrapTests(unittest.TestCase):
     def test_offline_check_uses_same_filter_as_download_without_docs(self):
         versions = {name: '5.20.2' if name == 'transformers' else '1.0'
                     for name in ('torch', 'torchvision', 'transformers', 'Pillow', 'safetensors', 'huggingface_hub')}
-        test_root = Path(__file__).resolve().parents[1] / 'results'
+        test_root = Path(__file__).resolve().parents[2] / 'results'
         with tempfile.TemporaryDirectory(prefix='filtered-snapshot-', dir=test_root) as temporary:
             folder = Path(temporary)
             for name in setup.MODEL_FILES:

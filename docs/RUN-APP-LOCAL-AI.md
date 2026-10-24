@@ -48,7 +48,7 @@ wails dev
 
 ผลตรวจวันที่ 23 ตุลาคม 2026:
 
-- `go test ./... -count=1` ผ่านทั้งหมด โดยรันนอก sandbox เพราะ sandbox บล็อก rename ของไฟล์ชั่วคราวและ HTTP fixture ในเทสต์เดิม
+- `go test -overlay tests/go-overlay.json ./... -count=1` ผ่านทั้งหมด โดยรันนอก sandbox เพราะ sandbox บล็อก rename ของไฟล์ชั่วคราวและ HTTP fixture ในเทสต์เดิม
 - เทสต์ Python translator 17 ข้อ และ desktop worker 4 ข้อ ผ่าน ใช้ API จำลองทั้งหมด
 - `npm run build` ผ่าน และสร้าง Wails bindings ใหม่ด้วย `wails generate module`
 - ทดสอบ Florence จริง 2 รูปผ่าน worker ใหม่ ได้คำบรรยายคนบนโซฟาพร้อม laptop และม้าลายสองตัว ใช้คำแปลจำลอง ผลอยู่ `results/app-local-ai-smoke/report.json`

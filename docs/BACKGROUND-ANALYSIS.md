@@ -12,9 +12,9 @@
 ตรวจสอบโดยใช้ไฟล์และ SQLite ชั่วคราว ไม่เรียก Gemini:
 
 ```powershell
-go test ./... -count=1 -timeout 90s
-node tools/test_background_analysis.cjs
-node tools/test_backup_modes.cjs
+go test -overlay tests/go-overlay.json ./... -count=1 -timeout 90s
+node tests/frontend/test_background_analysis.cjs
+node tests/frontend/test_backup_modes.cjs
 cd frontend
 npm test
 ```

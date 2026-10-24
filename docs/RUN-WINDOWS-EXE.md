@@ -40,23 +40,23 @@ GEMINI_API_KEY=ใส่คีย์ของคุณที่นี่
 ## ตรวจสอบ
 
 ```powershell
-go test ./... -count=1
-.\.venv\Scripts\python.exe -m unittest tools.test_bootstrap_ai tools.test_app_caption_worker tools.test_translate_captions
-node tools/test_setup_ui.cjs
+go test -overlay tests/go-overlay.json ./... -count=1
+.\.venv\Scripts\python.exe -m unittest discover -s tests/python -v
+node tests/frontend/test_setup_ui.cjs
 ```
 
 ทดสอบดาวน์โหลด Python จริงในแคชทดสอบแยก (ไม่ติดตั้ง PyTorch หรือโหลดโมเดลใหม่):
 
 ```powershell
 $env:PHOTO_AI_SETUP_BOOTSTRAP_SMOKE = '1'
-go test ./service -run '^TestAISetupFreshPythonBootstrap$' -v -count=1
+go test -overlay tests/go-overlay.json ./service -run '^TestAISetupFreshPythonBootstrap$' -v -count=1
 ```
 
 ทดสอบใช้ Florence ที่ติดตั้งไว้แล้วบนเครื่อง Windows และตรวจว่ารอบที่สองข้ามการโหลดทดสอบ โดยไม่มี Gemini:
 
 ```powershell
 $env:PHOTO_AI_SETUP_EXISTING_SMOKE = '1'
-go test ./service -run '^TestAISetupRealExistingMachine$' -v -count=1
+go test -overlay tests/go-overlay.json ./service -run '^TestAISetupRealExistingMachine$' -v -count=1
 ```
 
 ยังต้องทดสอบ EXE บน Windows เครื่องใหม่จริงเพื่อยืนยันกรณี driver, Visual C++ runtime, proxy/antivirus และสิทธิ์ของเครื่องนั้น ไม่ได้อ้างว่าการทดสอบใน environment แยกแทนเครื่อง Windows สะอาดได้ และยังไม่ยืนยัน build Mac/Linux

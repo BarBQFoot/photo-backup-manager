@@ -2,7 +2,7 @@
 // No filesystem backup operations or API requests are performed.
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {createRequire}=require('node:module'),{pathToFileURL}=require('node:url');
-const root=path.resolve(__dirname,'..'),req=createRequire(path.join(root,'frontend/package.json'));
+const root=path.resolve(__dirname,'../..'),req=createRequire(path.join(root,'frontend/package.json'));
 const {parse,compileScript}=req('@vue/compiler-sfc');
 const {createRenderer,h,nextTick}=req('vue');
 const outputs=['backup-manager-test.mts','backup-page-test.mts'].map(n=>path.join(root,'frontend/.nuxt',n));

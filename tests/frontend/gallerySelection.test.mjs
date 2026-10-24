@@ -1,19 +1,22 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { parse, compileScript } from '@vue/compiler-sfc'
-import { transform } from 'esbuild'
-import { createRenderer, nextTick, reactive } from 'vue'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+const frontendRequire = createRequire(new URL('../../frontend/package.json', import.meta.url))
+const { parse, compileScript } = frontendRequire('@vue/compiler-sfc')
+const { transform } = frontendRequire('esbuild')
+const { createRenderer, nextTick, reactive } = frontendRequire('vue')
 
 // Render the actual gallery, including v-memo and checkbox event handlers.
-const filename = new URL('../app/pages/gallery.vue', import.meta.url)
+const filename = new URL('../../frontend/app/pages/gallery.vue', import.meta.url)
 const { descriptor } = parse(readFileSync(filename, 'utf8'))
 let source = compileScript(descriptor, { id: 'gallery-test', inlineTemplate: true }).content
 source = source.replace(/import \{ useSharedPhotoManager \} from '[^']+'/, "import { inject } from 'vue'; const useSharedPhotoManager = () => inject('manager')")
 source = source.replace(/import \{ aiLabel, formatBytes, formatDate \} from '[^']+'/, 'const aiLabel = value => value; const formatBytes = value => value; const formatDate = value => value')
-source = source.replace("'../utils/captionSearch'", JSON.stringify(new URL('../app/utils/captionSearch.ts', import.meta.url).href))
+source = source.replace("'../utils/captionSearch'", JSON.stringify(new URL('../../frontend/app/utils/captionSearch.ts', import.meta.url).href))
 const { code } = await transform(source, { loader: 'ts', format: 'esm' })
-const compiled = code.replace(/from "vue"/g, `from ${JSON.stringify(import.meta.resolve('vue'))}`)
+const compiled = code.replace(/from "vue"/g, `from ${JSON.stringify(pathToFileURL(frontendRequire.resolve('vue')).href)}`)
 const { default: Gallery } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`)
 
 globalThis.Document ??= class Document {}

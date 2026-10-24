@@ -1,0 +1,24 @@
+{
+  "Replace": {
+    "app_env_test.go": "tests/go/app_env_test.go",
+    "internal/backup/file_copier_test.go": "tests/go/internal/backup/file_copier_test.go",
+    "internal/backup/file_deleter_test.go": "tests/go/internal/backup/file_deleter_test.go",
+    "internal/backup/file_mover_test.go": "tests/go/internal/backup/file_mover_test.go",
+    "internal/backup/path_validator_test.go": "tests/go/internal/backup/path_validator_test.go",
+    "internal/backup/scanner_test.go": "tests/go/internal/backup/scanner_test.go",
+    "repository/ai_batch_status_test.go": "tests/go/repository/ai_batch_status_test.go",
+    "repository/repository_test.go": "tests/go/repository/repository_test.go",
+    "service/ai_analyzer_test.go": "tests/go/service/ai_analyzer_test.go",
+    "service/ai_progress_test.go": "tests/go/service/ai_progress_test.go",
+    "service/ai_setup_mac_test.go": "tests/go/service/ai_setup_mac_test.go",
+    "service/ai_setup_smoke_test.go": "tests/go/service/ai_setup_smoke_test.go",
+    "service/ai_setup_test.go": "tests/go/service/ai_setup_test.go",
+    "service/background_analysis_test.go": "tests/go/service/background_analysis_test.go",
+    "service/backup_progress_test.go": "tests/go/service/backup_progress_test.go",
+    "service/batch_analysis_test.go": "tests/go/service/batch_analysis_test.go",
+    "service/copy_backup_test.go": "tests/go/service/copy_backup_test.go",
+    "service/drive_service_test.go": "tests/go/service/drive_service_test.go",
+    "service/hybrid_smoke_test.go": "tests/go/service/hybrid_smoke_test.go",
+    "service/resident_ai_worker_test.go": "tests/go/service/resident_ai_worker_test.go"
+  }
+}
