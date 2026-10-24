@@ -29,8 +29,8 @@ type FileMetadata = {
   aiStatus: AIStatus; description?: string
   backupJobId?: number; status: 'active' | 'missing' | 'deleted'
 }
-type BackupRequest = { sourcePath: string; destinationPath: string; filePaths: string[] }
-type BackupItemResult = { sourcePath: string; destinationPath?: string; status: 'moved' | 'skipped' | 'failed'; error?: AppError }
+type BackupRequest = { sourcePath: string; destinationPath: string; filePaths: string[]; mode?: 'move' | 'copy' }
+type BackupItemResult = { sourcePath: string; destinationPath?: string; status: 'moved' | 'copied' | 'skipped' | 'failed'; error?: AppError }
 type BackupResult = { jobId: number; totalFiles: number; successCount: number; skippedCount: number; failedCount: number; durationMs: number; items: BackupItemResult[] }
 type AIResult = { fileId: number; description: string; status: 'success' }
 type SearchResult = { fileId: number; fileName: string; path: string; sizeBytes: number; mimeType: string; fileStatus: FileStatus; description: string }
@@ -51,17 +51,19 @@ type SearchResult = { fileId: number; fileName: string; path: string; sizeBytes:
 
 ### `StartBackup(request: BackupRequest): BackupResult`
 
-- **หน้าที่:** ย้ายรายการไฟล์ที่เลือกจาก Source ไป Destination ตาม Requirement เดิม; ตรวจ Duplicate, ย้าย/Copy Fallback, Verify Destination, ลบ Source ตามเกณฑ์ แล้วบันทึก Metadata/Job
-- **Request:** Source, Destination และ Absolute Paths ที่เลือก (ไม่ส่ง Binary ผ่าน API)
+- **หน้าที่:** ย้ายหรือคัดลอกรายการไฟล์ที่เลือกจาก Source ไป Destination; ตรวจ Duplicate และบันทึก Metadata/Job โดย `mode:"copy"` เก็บไฟล์และ Record ต้นทางไว้ ส่วน `mode:"move"` ลบ Source เมื่อย้ายสำเร็จ
+- **Request:** Source, Destination, Absolute Paths ที่เลือก และ `mode` (ไม่ส่ง Binary ผ่าน API); ไม่ส่ง `mode` หรือส่งค่าว่างจะใช้ `move` เพื่อรองรับ Frontend เดิม
+- **Copy:** เรียก Wails `StartBackup({sourcePath, destinationPath, filePaths, mode:"copy"})`; สำเร็จคืน `items[].status:"copied"` และนับใน `successCount` ส่วนชื่อซ้ำคืน `skipped` ข้อมูลปลายทางใหม่เริ่มเป็น `unanalyzed` และไม่คัดลอกคำอธิบาย AI จากต้นทาง
+- **Frontend:** ต้องนับทั้ง `moved` และ `copied` เป็นผลสำเร็จ และรองรับ Progress `copying`; ประวัติเก็บยอดรวมและผลการทำงานเช่นเดิม โดย Schema ปัจจุบันยังไม่ได้เก็บชนิดงาน Move/Copy แยกกัน
 - **Response:** ผลรายไฟล์, จำนวนรวม และเวลาจริง บันทึกเฉพาะ Metadata ไม่บันทึกรูป
-- **Errors:** `INVALID_PATH`, `SOURCE_EQUALS_DESTINATION`, `DESTINATION_WITHIN_SOURCE`, `INVALID_SELECTION`, `DESTINATION_UNAVAILABLE`; Operational Error รายไฟล์อยู่ใน `items`
+- **Errors:** `INVALID_REQUEST` เมื่อ mode ไม่ใช่ `move`/`copy`, `INVALID_PATH`, `SOURCE_EQUALS_DESTINATION`, `DESTINATION_WITHIN_SOURCE`, `INVALID_SELECTION`, `DESTINATION_UNAVAILABLE`; Operational Error รายไฟล์อยู่ใน `items`
 - **ตัวอย่าง:** รับ `{sourcePath:"C:\\testdata\\source",destinationPath:"D:\\Photos",filePaths:["C:\\testdata\\source\\IMG_001.jpg"]}` → `{jobId:1,totalFiles:1,successCount:1,skippedCount:0,failedCount:0,durationMs:24,items:[{sourcePath:"...",destinationPath:"D:\\Photos\\IMG_001.jpg",status:"moved"}]}`
 - **Owner:** Backend / Member 1 ร่วมกับ Database Member 2
 
 ### `GetBackupProgress(): BackupProgress`
 
 - **หน้าที่:** อ่านความคืบหน้าปัจจุบัน; ส่ง Event `backup:progress` สำหรับอัปเดตสด
-- **Request/Response:** ไม่มี Input; คืน Progress ปัจจุบัน หรือสถานะ Idle
+- **Request/Response:** ไม่มี Input; คืน Progress ปัจจุบัน หรือสถานะ Idle; ระหว่างทำงานใช้ `moving` หรือ `copying` ตามโหมด และจบด้วย `completed` (ตรวจความสำเร็จ/ล้มเหลวจาก BackupResult)
 - **Errors:** `INTERNAL_ERROR`
 - **ตัวอย่าง:** `{jobId:1,completed:2,total:5,currentPath:"...\\IMG_002.jpg",status:"moving"}`
 - **Owner:** Backend / Member 1

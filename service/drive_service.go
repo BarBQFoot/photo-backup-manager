@@ -44,6 +44,7 @@ func (e *AppError) Error() string {
 }
 
 type BackupRequest struct {
+	Mode            string   `json:"mode,omitempty"` // "move" (default) or "copy"
 	SourcePath      string   `json:"sourcePath"`
 	DestinationPath string   `json:"destinationPath"`
 	FilePaths       []string `json:"filePaths"`
@@ -332,8 +333,19 @@ func (s *DriveService) DeleteFile(fileID int64, destinationPath string) (DeleteR
 	return DeleteResult{FileID: fileID, Status: "deleted", DeletedAt: deletedAt.Format(time.RFC3339)}, nil
 }
 
-// StartBackup ย้ายไฟล์ที่เลือกไปยัง Destination และสรุปผลการทำงานรายไฟล์.
+// StartBackup ย้ายหรือคัดลอกไฟล์ที่เลือก โดยใช้โหมด move เมื่อไม่ได้ระบุ Mode.
 func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) {
+	mode := request.Mode
+	if mode == "" {
+		mode = "move"
+	}
+	if mode != "move" && mode != "copy" {
+		return BackupResult{}, &AppError{Code: "INVALID_REQUEST", Message: "mode must be move or copy"}
+	}
+	progressStatus := "moving"
+	if mode == "copy" {
+		progressStatus = "copying"
+	}
 	if err := backup.ValidateBackupPaths(request.SourcePath, request.DestinationPath); err != nil {
 		return BackupResult{}, toAppError(err)
 	}
@@ -360,12 +372,13 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 		}
 		result.JobID = int64(job.ID)
 	}
-	s.setProgress(BackupProgress{Total: result.TotalFiles, Status: "moving"})
+	s.setProgress(BackupProgress{JobID: result.JobID, Total: result.TotalFiles, Status: progressStatus})
 	for _, sourcePath := range request.FilePaths {
 		destinationPath := filepath.Join(request.DestinationPath, filepath.Base(sourcePath))
 		var sourceRecord *dbmodel.FileRecord
 		var err error
-		if s.fileStore != nil {
+		// Copy creates destination metadata independently and never moves the source record.
+		if s.fileStore != nil && mode == "move" {
 			sourceRecord, err = s.fileStore.GetByPath(context.Background(), sourcePath)
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				err = nil
@@ -383,7 +396,11 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 		}
 		status := ""
 		if err == nil {
-			status, err = s.moveSelectedFile(sourcePath, destinationPath)
+			if mode == "copy" {
+				status, err = backup.CopyFile(sourcePath, destinationPath)
+			} else {
+				status, err = s.moveSelectedFile(sourcePath, destinationPath)
+			}
 		}
 		item := BackupItemResult{
 			SourcePath:      sourcePath,
@@ -415,14 +432,15 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 		}
 		result.Items = append(result.Items, item)
 		s.setProgress(BackupProgress{
+			JobID:       result.JobID,
 			Completed:   len(result.Items),
 			Total:       result.TotalFiles,
 			CurrentPath: sourcePath,
-			Status:      "moving",
+			Status:      progressStatus,
 		})
 	}
 	result.DurationMs = time.Since(startedAt).Milliseconds()
-	s.setProgress(BackupProgress{Completed: result.TotalFiles, Total: result.TotalFiles, Status: "completed"})
+	s.setProgress(BackupProgress{JobID: result.JobID, Completed: result.TotalFiles, Total: result.TotalFiles, Status: "completed"})
 	if job != nil {
 		job.CompletedAt = time.Now()
 		job.SuccessCount = int32(result.SuccessCount)
