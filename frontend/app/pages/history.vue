@@ -9,7 +9,7 @@ const state = manager.state
 const deleting = ref<DriveFile | null>(null)
 const missing = computed(() => state.files.filter(file => file.fileStatus === 'missing').length)
 const stats = computed(() => [
-  { label: 'การย้ายที่ผ่านมา', value: state.jobs.length, unit: 'ครั้ง' },
+  { label: 'งานจัดเก็บที่ผ่านมา', value: state.jobs.length, unit: 'ครั้ง' },
   { label: 'ไฟล์ที่อยู่ครบ', value: state.files.length - missing.value, unit: 'ไฟล์' },
   { label: 'ไฟล์ที่หาไม่พบ', value: missing.value, unit: 'ไฟล์' },
 ])
@@ -19,11 +19,12 @@ const statusLabels: Record<string, string> = {
 }
 
 function deleteDisabled(file: DriveFile) {
-  return !file.fileId || file.fileStatus === 'missing' || !!state.busy
+  return !file.fileId || file.fileStatus === 'missing' || file.aiStatus === 'analyzing' || state.ai.pendingIds.has(file.fileId!) || !!state.busy
 }
 function deleteHint(file: DriveFile) {
   if (!file.fileId) return 'ยังไม่มีข้อมูลไฟล์ในฐานข้อมูล จึงยังลบผ่านแอปไม่ได้'
   if (file.fileStatus === 'missing') return 'ไฟล์หาย ไม่สามารถลบไฟล์จริงได้'
+  if (file.aiStatus === 'analyzing' || state.ai.pendingIds.has(file.fileId!)) return 'รอวิเคราะห์เสร็จก่อนลบ'
   return `ลบ ${file.fileName}`
 }
 function remove() {
@@ -44,13 +45,13 @@ function remove() {
 
     <section class="surface no-padding">
       <div class="section-heading padded">
-        <div><h2>บันทึกการย้ายรูป</h2><p>รายการทั้งหมดของโฟลเดอร์ปลายทางนี้</p></div>
+        <div><h2>บันทึกการจัดเก็บรูป</h2><p>รายการย้ายและสำรองทั้งหมดของโฟลเดอร์ปลายทางนี้</p></div>
         <span class="badge subtle"><AppIcon name="history" /> ประวัติ</span>
       </div>
       <div v-if="!state.jobs.length" class="empty-state">
         <span class="empty-icon"><AppIcon name="history" /></span>
-        <h3>{{ state.destination ? 'ทุกการย้าย จะถูกบันทึกไว้ที่นี่' : 'เริ่มจากเลือกโฟลเดอร์ปลายทาง' }}</h3>
-        <p>{{ state.destination ? 'เมื่อย้ายรูปผ่านแอป คุณจะย้อนดูผลการทำงานได้เสมอ' : 'เปิดโฟลเดอร์เพื่อดูประวัติและตรวจสอบไฟล์ของคุณ' }}</p>
+        <h3>{{ state.destination ? 'ทุกการจัดเก็บ จะถูกบันทึกไว้ที่นี่' : 'เริ่มจากเลือกโฟลเดอร์ปลายทาง' }}</h3>
+        <p>{{ state.destination ? 'เมื่อย้ายหรือสำรองรูปผ่านแอป คุณจะย้อนดูผลการทำงานได้เสมอ' : 'เปิดโฟลเดอร์เพื่อดูประวัติและตรวจสอบไฟล์ของคุณ' }}</p>
       </div>
       <div v-else class="table-wrap">
         <table>

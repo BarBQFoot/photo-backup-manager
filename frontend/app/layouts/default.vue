@@ -9,9 +9,9 @@ const state = manager.state
 const route = useRoute()
 const connected = ref(false)
 const pages = [
-  { id: 'move', path: '/', label: 'ย้ายรูปภาพ', icon: 'transfer', title: 'ให้ทุกรูป มีที่ของมัน', description: 'ย้ายรูปไปยังโฟลเดอร์ที่ใช่ แล้วเก็บความทรงจำให้เป็นระเบียบ' },
+  { id: 'move', path: '/', label: 'ย้าย / สำรองรูป', icon: 'transfer', title: 'ให้ทุกรูป มีที่ของมัน', description: 'เลือกย้ายหรือสำรองรูปไปยังโฟลเดอร์ที่ใช่ แล้วเก็บความทรงจำให้เป็นระเบียบ' },
   { id: 'gallery', path: '/gallery', label: 'แกลเลอรี', icon: 'image', title: 'ความทรงจำ ในที่เดียว', description: 'เปิดดูรูปภาพ อ่านรายละเอียด และค้นหาช่วงเวลาที่ต้องการ' },
-  { id: 'history', path: '/history', label: 'ประวัติและตรวจสอบ', icon: 'history', title: 'ทุกรายการ ตรวจสอบได้', description: 'ดูประวัติการย้ายและเช็กว่ารูปภาพของคุณยังอยู่ครบ' },
+  { id: 'history', path: '/history', label: 'ประวัติและตรวจสอบ', icon: 'history', title: 'ทุกรายการ ตรวจสอบได้', description: 'ดูประวัติการจัดเก็บและเช็กว่ารูปภาพของคุณยังอยู่ครบ' },
 ]
 const current = computed(() => pages.find(item => item.path === route.path) ?? pages[0]!)
 function focusMain() {
@@ -87,6 +87,17 @@ onUnmounted(() => unsubscribe?.())
         </button>
       </section>
       <div v-if="state.busy" class="notice neutral" role="status"><span class="spinner" />{{ state.busy }}…</div>
+      <div v-if="state.ai.running" class="notice neutral" role="status">
+        <span class="spinner" /><div><strong>{{ state.ai.message }}</strong><small class="path" style="display:block">{{ state.ai.folder }}</small><small>ทำงานเบื้องหลัง · เปิดดูรูปที่เสร็จแล้วหรือย้ายรูปอื่นได้</small></div>
+      </div>
+      <div v-if="state.ai.error" class="notice error" role="alert">
+        <AppIcon name="info" /><span>{{ state.ai.error }}</span>
+        <button class="text-button push-right" aria-label="ปิดข้อผิดพลาด AI" @click="state.ai.error = ''"><AppIcon name="close" /></button>
+      </div>
+      <div v-if="state.ai.notice" class="notice success" role="status">
+        <AppIcon name="check" />{{ state.ai.notice }}
+        <button class="text-button push-right" aria-label="ปิดผลวิเคราะห์" @click="state.ai.notice = ''"><AppIcon name="close" /></button>
+      </div>
       <div v-if="state.error" class="notice error" role="alert">
         <AppIcon name="info" /><span>{{ state.error }}</span>
         <button class="text-button push-right" aria-label="ปิดข้อความผิดพลาด" @click="state.error = ''"><AppIcon name="close" /></button>

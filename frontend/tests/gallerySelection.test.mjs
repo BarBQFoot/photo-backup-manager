@@ -49,7 +49,7 @@ test('memoized checkboxes retain previous choices, including after search and se
     { path: '/a', fileId: 1, fileName: 'a', fileStatus: 'available', aiStatus: 'analyzed', description: 'cat' },
     { path: '/b', fileId: 2, fileName: 'b', fileStatus: 'available', aiStatus: 'analyzed', description: 'sea' },
     { path: '/c', fileId: 3, fileName: 'c', fileStatus: 'available', aiStatus: 'analyzed', description: 'sea' },
-  ], busy: '', destination: '/photos', detail: null })
+  ], busy: '', destination: '/photos', detail: null, ai: { running: false, message: '', pendingIds: new Set() } })
   let analyzed
   const app = renderer.createApp(Gallery)
   app.provide('manager', { state, analyzeSelected: paths => { analyzed = paths }, showDetail: file => { state.detail = file } })

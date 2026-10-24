@@ -14,7 +14,7 @@ const detailPanel = ref<HTMLElement | null>(null)
 watch(() => state.detail?.path, () => {
   if (detailPanel.value) detailPanel.value.scrollTop = 0
 }, { flush: 'post' })
-const canAnalyze = (file: DriveFile) => !!file.fileId && file.fileStatus === 'available' && file.aiStatus !== 'analyzing'
+const canAnalyze = (file: DriveFile) => !!file.fileId && file.fileStatus === 'available' && file.aiStatus !== 'analyzing' && !state.ai.pendingIds.has(file.fileId)
 const selectedFiles = computed(() => state.files.filter(file => canAnalyze(file) && selectedSet.value.has(file.path)))
 const visiblePaths = computed(() => new Set(filtered.value.map(file => file.path)))
 const hiddenSelectedCount = computed(() => selectedFiles.value.filter(file => !visiblePaths.value.has(file.path)).length)
@@ -71,11 +71,11 @@ const emptyTitle = computed(() => {
         <span v-if="hiddenSelectedCount" class="muted">นอกผลค้นหา {{ hiddenSelectedCount }} รูป</span>
         <button class="button secondary" :disabled="!!state.busy || !filtered.some(canAnalyze)" @click="selectVisible">เลือกทั้งหมดที่แสดง</button>
         <button class="text-button" :disabled="!!state.busy || !selectedPaths.length" @click="selectedPaths = []">ล้างการเลือก</button>
-        <button class="button primary" :disabled="!!state.busy || !selectedFiles.length" @click="manager.analyzeSelected(selectedFiles.map(file => file.path))">
+        <button class="button primary" :disabled="!!state.busy || state.ai.running || !selectedFiles.length" @click="manager.analyzeSelected(selectedFiles.map(file => file.path))">
           <AppIcon name="sparkle" />วิเคราะห์รูปที่เลือก
         </button>
       </div>
-      <p class="helper" role="status">{{ state.busy.startsWith('กำลังวิเคราะห์') ? state.busy : 'เลือกภาพที่ต้องการ ระบบอ่านภาพบนเครื่อง แล้วแปลคำบรรยายครั้งละไม่เกิน 100 รูป พักระหว่างชุด 10 วินาที' }}</p>
+      <p class="helper" role="status">{{ state.ai.running ? state.ai.message : 'เลือกภาพที่ต้องการ ระบบอ่านภาพบนเครื่อง แล้วแปลคำบรรยายครั้งละไม่เกิน 100 รูป พักระหว่างชุด 10 วินาที' }}</p>
     </section>
 
     <div class="gallery-layout">
@@ -146,7 +146,7 @@ const emptyTitle = computed(() => {
           <!-- ปุ่มวิเคราะห์รูปด้วย AI -->
           <button
             class="button primary full-width"
-            :disabled="!canAnalyze(state.detail) || !!state.busy"
+            :disabled="!canAnalyze(state.detail) || !!state.busy || state.ai.running"
             @click="manager.analyze()"
           >
             <AppIcon name="sparkle" />{{ state.detail.aiStatus === 'analyzing' ? 'กำลังวิเคราะห์…' : state.detail.aiStatus === 'failed' ? 'ลองวิเคราะห์อีกครั้ง' : 'วิเคราะห์รูปด้วย AI' }}

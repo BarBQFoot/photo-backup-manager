@@ -76,6 +76,8 @@ func (s *DriveService) AnalyzeImages(fileIDs []int64) (out AIBatchResult, result
 	infos := map[string]os.FileInfo{}
 	finished := map[string]bool{}
 	seen := map[int64]bool{}
+	// Reserve selected records atomically with respect to moves and deletes.
+	s.fileMutationMu.Lock()
 	for _, id := range fileIDs {
 		if seen[id] {
 			continue
@@ -136,6 +138,7 @@ func (s *DriveService) AnalyzeImages(fileIDs []int64) (out AIBatchResult, result
 		}
 	}
 	inputs = acceptedInputs
+	s.fileMutationMu.Unlock()
 	out.Timings.MarkStatusMs = time.Since(markStarted).Milliseconds()
 	out.Timings.PreparationMs = time.Since(started).Milliseconds()
 	fail := func(fid, message string) {
@@ -156,6 +159,8 @@ func (s *DriveService) AnalyzeImages(fileIDs []int64) (out AIBatchResult, result
 			s.emitAIProgress(ctx, event)
 			return
 		}
+		s.fileMutationMu.Lock()
+		defer s.fileMutationMu.Unlock()
 		saveStarted := time.Now()
 		defer func() { saveDuration += time.Since(saveStarted) }()
 		record, ok := records[event.FileID]

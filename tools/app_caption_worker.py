@@ -75,10 +75,8 @@ def trim_generated_tokens(rows, eos, max_new_tokens):
 
 class Captioner:
     def __init__(self):
-        if __package__:
-            from .caption_images import torch, AutoProcessor, Florence2ForConditionalGeneration
-        else:
-            from caption_images import torch, AutoProcessor, Florence2ForConditionalGeneration
+        import torch
+        from transformers import AutoProcessor, Florence2ForConditionalGeneration
         self.torch = torch
         self.device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
         self.dtype = torch.float16 if self.device == 'cuda' else torch.float32

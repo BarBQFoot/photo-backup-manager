@@ -19,6 +19,7 @@ import (
 
 type DriveService struct {
 	aiMu                sync.Mutex
+	fileMutationMu      sync.Mutex
 	previewMu           sync.RWMutex
 	previews            map[string]photoPreview
 	progressMu          sync.RWMutex
@@ -136,6 +137,8 @@ func (s *DriveService) ScanDrive(path string) ([]backup.DriveFile, error) {
 	if recoverInterrupted {
 		defer s.aiMu.Unlock()
 	}
+	s.fileMutationMu.Lock()
+	defer s.fileMutationMu.Unlock()
 	files, err := backup.ScanDrive(path)
 	if err != nil || s.fileStore == nil {
 		if err == nil {
@@ -234,6 +237,13 @@ func (s *DriveService) AnalyzeImage(fileID int64) (AIResult, error) {
 	if s.fileStore == nil || s.aiAnalyzer == nil {
 		return AIResult{}, &AppError{Code: "AI_UNAVAILABLE", Message: "AI analyzer is unavailable"}
 	}
+	s.fileMutationMu.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			s.fileMutationMu.Unlock()
+		}
+	}()
 	ctx := context.Background()
 	record, err := s.fileStore.GetByID(ctx, int32(fileID))
 	if err != nil {
@@ -258,7 +268,11 @@ func (s *DriveService) AnalyzeImage(fileID int64) (AIResult, error) {
 		return AIResult{}, &AppError{Code: "AI_SAVE_FAILED", Message: "could not mark image as analyzing"}
 	}
 
+	s.fileMutationMu.Unlock()
+	locked = false
 	description, err := s.aiAnalyzer.Analyze(ctx, record.Path, record.MimeType)
+	s.fileMutationMu.Lock()
+	locked = true
 	if err != nil {
 		code := "AI_UNAVAILABLE"
 		var aiErr *AIError
@@ -320,6 +334,8 @@ func (s *DriveService) GetBackupHistory(destinationPath string) ([]BackupJob, er
 
 // DeleteFile ลบไฟล์จริงก่อน แล้วจึงเปลี่ยนสถานะ Record เป็น deleted.
 func (s *DriveService) DeleteFile(fileID int64, destinationPath string) (DeleteResult, error) {
+	s.fileMutationMu.Lock()
+	defer s.fileMutationMu.Unlock()
 	if s.fileStore == nil {
 		return DeleteResult{}, &AppError{Code: "METADATA_READ_FAILED", Message: "file repository is unavailable"}
 	}
@@ -329,6 +345,9 @@ func (s *DriveService) DeleteFile(fileID int64, destinationPath string) (DeleteR
 			return DeleteResult{}, &AppError{Code: "FILE_NOT_FOUND", Message: "file metadata was not found"}
 		}
 		return DeleteResult{}, &AppError{Code: "METADATA_READ_FAILED", Message: err.Error()}
+	}
+	if record.AiStatus == repository.AIStatusAnalyzing {
+		return DeleteResult{}, &AppError{Code: "AI_FILE_BUSY", Message: "รูปนี้กำลังวิเคราะห์ กรุณารอให้เสร็จก่อนลบ"}
 	}
 	deletedAt, err := backup.DeleteFileAtPath(destinationPath, record.Path)
 	if err != nil {
@@ -381,6 +400,7 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 	}
 	s.setProgress(BackupProgress{JobID: result.JobID, Total: result.TotalFiles, Status: progressStatus})
 	for _, sourcePath := range request.FilePaths {
+		s.fileMutationMu.Lock()
 		destinationPath := filepath.Join(request.DestinationPath, filepath.Base(sourcePath))
 		var sourceRecord *dbmodel.FileRecord
 		var err error
@@ -391,6 +411,9 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 				err = nil
 			} else if err != nil {
 				err = &AppError{Code: "METADATA_READ_FAILED", Message: err.Error()}
+			}
+			if err == nil && sourceRecord != nil && sourceRecord.AiStatus == repository.AIStatusAnalyzing {
+				err = &AppError{Code: "AI_FILE_BUSY", Message: "รูปนี้กำลังวิเคราะห์ กรุณารอให้เสร็จก่อนย้าย"}
 			}
 			if err == nil && sourceRecord != nil {
 				_, destinationErr := s.fileStore.GetByPath(context.Background(), destinationPath)
@@ -437,6 +460,7 @@ func (s *DriveService) StartBackup(request BackupRequest) (BackupResult, error) 
 				}
 			}
 		}
+		s.fileMutationMu.Unlock()
 		result.Items = append(result.Items, item)
 		s.setProgress(BackupProgress{
 			JobID:       result.JobID,
