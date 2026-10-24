@@ -36,5 +36,16 @@ Go · Wails v2 · Nuxt · SQLite/GORM · Python/PyTorch · Florence · Gemini
 
 [ดาวน์โหลดโปรแกรมสำหรับ Windows](https://github.com/BarBQFoot/photo-backup-manager/releases/latest)
 
-แตก ZIP แล้วเปิดไฟล์ .exe เพื่อใช้งาน
+1. แตก ZIP ที่ดาวน์โหลด
+2. สร้างไฟล์ชื่อ `.env` ในโฟลเดอร์เดียวกับไฟล์ `.exe` (บน macOS ให้วางข้างไฟล์ `.app`)
+3. เปิด `.env` ด้วยโปรแกรมแก้ไขข้อความ แล้วใส่:
+
+   ```env
+   GEMINI_API_KEY=apikey
+   ```
+
+   แทนที่ `apikey` ด้วย Gemini API key ของคุณ และบันทึกไฟล์ให้ชื่อ `.env` ไม่ใช่ `.env.txt`
+4. เปิดโปรแกรม หากเปิดอยู่แล้ว ให้ปิดแล้วเปิดใหม่เพื่อโหลดคีย์
+
+คีย์นี้ใช้สำหรับแปลคำบรรยายเป็นภาษาไทย ส่วนการอ่านภาพด้วย Florence ทำบนเครื่อง
 
