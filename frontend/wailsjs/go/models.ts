@@ -257,6 +257,7 @@ export namespace service {
 	    }
 	}
 	export class BackupRequest {
+	    mode?: string;
 	    sourcePath: string;
 	    destinationPath: string;
 	    filePaths: string[];
@@ -267,6 +268,7 @@ export namespace service {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
 	        this.sourcePath = source["sourcePath"];
 	        this.destinationPath = source["destinationPath"];
 	        this.filePaths = source["filePaths"];

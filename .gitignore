@@ -9,6 +9,7 @@ frontend/node_modules/
 frontend/.nuxt/
 frontend/.output/
 frontend/dist/
+frontend/node_modules/
 
 # Environment / API keys
 .env
@@ -19,6 +20,7 @@ frontend/dist/
 *.db
 *.sqlite
 *.sqlite3
+frontend/package.json.md5
 
 # Local image analysis environments, downloaded data and generated results
 /.venv/
