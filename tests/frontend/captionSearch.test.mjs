@@ -145,3 +145,21 @@ test('expanded aliases retain distinctions between species, subtypes and unrelat
     ['เรือใบ', 'เรือคายัคลอยอยู่'], ['ตั๊กแตน', 'ผีเสื้อบินอยู่ในสวน'],
   ]) assert.deepEqual(ids(createCaptionSearch([photo(1, caption)]).search(query)), [], query)
 })
+
+test('Isan aliases find standard Thai captions without changing caption text', () => {
+  for (const [query, caption] of [
+    ['เฮือน', 'บ้านอยู่กลางทุ่ง'], ['เกิบ', 'รองเท้าวางอยู่บนพื้น'],
+    ['ขัว', 'คนยืนบนสะพาน'], ['บักหุ่ง', 'มะละกอวางในตะกร้า'],
+    ['บักม่วง', 'เด็กกินมะม่วง'], ['บักมี่', 'ขนุนอยู่บนโต๊ะ'],
+    ['บักเขียบ', 'น้อยหน่าอยู่ในจาน'], ['บักอึ', 'ฟักทองวางอยู่'],
+    ['งัว', 'วัวกินหญ้า'], ['ตำบักหุ่ง', 'ส้มตำอยู่บนโต๊ะ'],
+    ['เป็นตาฮัก', 'แมวน่ารัก'], ['เกิบคีบ', 'รองเท้าแตะอยู่หน้าบ้าน'],
+  ]) {
+    const item = photo(1, caption)
+    assert.deepEqual(ids(createCaptionSearch([item]).search(query)), [1], query)
+    assert.equal(item.description, caption)
+  }
+  assert.deepEqual(ids(createCaptionSearch([photo(1, 'เฮือนอยู่ริมแม่น้ำ')]).search('บ้าน')), [1])
+  assert.deepEqual(ids(createCaptionSearch([photo(1, 'รองเท้าอยู่หน้าบ้าน')]).search('เกิบ เฮือน')), [1])
+  assert.deepEqual(ids(createCaptionSearch([photo(1, 'คนส่งของ')]).search('กางเกง')), [])
+})
