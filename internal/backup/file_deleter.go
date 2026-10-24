@@ -34,5 +34,5 @@ func DeleteFileAtPath(destinationRoot, filePath string) (time.Time, error) {
 	if err := os.Remove(target); err != nil {
 		return time.Time{}, &FileOperationError{Code: "DELETE_FAILED", Message: "file could not be deleted", Err: err}
 	}
-	return time.Now(), nil
+	return time.Now(), nil	
 }

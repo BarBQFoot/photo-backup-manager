@@ -20,7 +20,6 @@ export function usePhotoManager() {
   }
 
   async function refreshDestination() {
-    // Keep independently successful results even if the other request fails.
     const results = await Promise.allSettled([desktop.scan(state.destination), desktop.history(state.destination)])
     if (results[0].status === 'fulfilled') {
       state.files = results[0].value
@@ -71,9 +70,9 @@ export function usePhotoManager() {
       try {
         state.result = await desktop.backup({ sourcePath: state.source, destinationPath: state.destination, filePaths: [...state.selected] })
       } finally {
+        state.busy = 'กำลังอัปเดตรายการหลังย้าย'
         state.progress = { ...state.progress, status: 'idle' }
         state.selected = []
-        // A failed request can still have moved files; never leave an old selection active.
         const scan = await Promise.allSettled([desktop.scan(state.source), refreshDestination()])
         if (scan[0].status === 'fulfilled') { state.sourceFiles = scan[0].value; state.sourceScanned = true }
         const failed = scan.find(item => item.status === 'rejected')
@@ -93,6 +92,61 @@ export function usePhotoManager() {
     })
   }
 
+  async function analyzeSelected(paths: string[]) {
+    const selectedPaths = new Set(paths)
+    const files = state.files.filter(file => selectedPaths.has(file.path) && file.fileId && file.fileStatus === 'available' && file.aiStatus !== 'analyzing')
+    if (!files.length) return
+    await run('กำลังวิเคราะห์รูปที่เลือก', async () => {
+      const selectedIds = new Set(files.map(file => file.fileId!))
+      const update = (id: number, changes: Partial<DriveFile>) => {
+        const index = state.files.findIndex(file => file.fileId === id)
+        if (index >= 0) state.files[index] = { ...state.files[index]!, ...changes }
+        if (state.detail?.fileId === id) state.detail = { ...state.detail, ...changes }
+      }
+      const unsubscribe = desktop.onAIProgress(event => {
+        if (event.type === 'progress' && event.phase !== 'done') {
+          state.busy = `กำลังวิเคราะห์: ${event.phase === 'captioning' ? 'อ่านภาพ' : 'แปลคำบรรยาย'} ${event.completed ?? 0}/${event.total ?? files.length} รูป`
+        }
+        if (event.type === 'result' && event.file_id && event.caption) {
+          const id = Number(event.file_id.replace(/^file_/, ''))
+          if (selectedIds.has(id)) update(id, { description: event.caption, aiStatus: 'analyzed' })
+        }
+      })
+      for (const file of files) update(file.fileId!, { aiStatus: 'analyzing' })
+      try {
+        const result = await desktop.analyzeImages(files.map(file => file.fileId!))
+        for (const item of result.results ?? []) update(item.fileId, { description: item.description, aiStatus: 'analyzed' })
+        for (const item of result.failures ?? []) update(item.fileId, { aiStatus: 'failed' })
+        state.notice = `วิเคราะห์สำเร็จ ${result.results.length}/${files.length} รูป${result.failures.length ? ` ไม่สำเร็จ ${result.failures.length} รูป กดเลือกเฉพาะรูปที่ไม่สำเร็จเพื่อทำต่อได้` : ''}`
+        if (result.failures.length) {
+          const groups = new Map<string, string[]>()
+          for (const item of result.failures) {
+            const names = groups.get(item.message) ?? []
+            names.push(files.find(file => file.fileId === item.fileId)?.fileName ?? String(item.fileId))
+            groups.set(item.message, names)
+          }
+          state.error = [...groups].map(([message, names]) => `${message}\n${names.length} รูป: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` และอีก ${names.length - 3} รูป` : ''}`).join('\n\n')
+        }
+      } finally {
+        unsubscribe()
+        // Reconcile statuses even after a bridge/network error; preserve already saved captions.
+        const results = await Promise.allSettled([desktop.scan(state.destination)])
+        if (results[0]?.status === 'fulfilled') {
+          state.files = results[0].value
+          if (state.detail) state.detail = state.files.find(file => file.fileId === state.detail?.fileId) ?? null
+        } else {
+          for (const file of state.files.filter(file => selectedIds.has(file.fileId!) && file.aiStatus === 'analyzing')) update(file.fileId!, { aiStatus: 'failed' })
+        }
+      }
+    })
+  }
+
+  async function analyze() {
+    const file = state.detail
+    if (!file?.fileId || file.fileStatus === 'missing') return
+    await analyzeSelected([file.path])
+  }
+
   async function remove(file: DriveFile) {
     if (!file.fileId || file.fileStatus === 'missing') return
     await run('กำลังลบไฟล์', async () => {
@@ -107,7 +161,7 @@ export function usePhotoManager() {
     })
   }
 
-  return { state, choose, scanSource, refresh, move, showDetail, remove }
+  return { state, choose, scanSource, refresh, move, showDetail, analyze, analyzeSelected, remove }
 }
 
 export type PhotoManager = ReturnType<typeof usePhotoManager>

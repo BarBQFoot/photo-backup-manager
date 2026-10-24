@@ -16,17 +16,30 @@ type App struct {
 	ctx          context.Context
 	db           *gorm.DB
 	driveService *service.DriveService
+	aiSetup      *service.AISetup
 }
 
 // NewApp creates a new App application struct
 func NewApp(db *gorm.DB) *App {
 	return &App{
-		db: db,
+		db:      db,
+		aiSetup: service.NewAISetup(),
 		driveService: service.NewDriveServiceWithRepositories(
 			repository.NewFileRecordRepository(db),
 			repository.NewBackupJobRepository(db),
 		),
 	}
+}
+
+func (a *App) shutdown(context.Context) { a.aiSetup.Cancel() }
+
+func (a *App) GetAISetupStatus() service.AISetupStatus { return a.aiSetup.GetStatus() }
+
+func (a *App) StartAISetup() (service.AISetupStatus, error) {
+	if a.ctx == nil {
+		return a.aiSetup.GetStatus(), fmt.Errorf("application is not ready")
+	}
+	return a.aiSetup.Start(a.ctx), nil
 }
 
 // startup is called when the app starts. The context is saved

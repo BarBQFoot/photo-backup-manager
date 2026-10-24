@@ -18,12 +18,19 @@ import (
 )
 
 type DriveService struct {
-	progressMu sync.RWMutex
-	progress   BackupProgress
-	fileStore  repository.FileRecordStore
-	jobStore   repository.BackupJobStore
-	wailsCtx   context.Context
-	emitEvent  func(context.Context, string, ...interface{})
+	aiMu                sync.Mutex
+	previewMu           sync.RWMutex
+	previews            map[string]photoPreview
+	progressMu          sync.RWMutex
+	progress            BackupProgress
+	progressEmittedAt   time.Time
+	aiProgressEmittedAt time.Time
+	aiProgressPhase     string
+	fileStore           repository.FileRecordStore
+	jobStore            repository.BackupJobStore
+	wailsCtx            context.Context
+	emitEvent           func(context.Context, string, ...interface{})
+	aiAnalyzer          AIAnalyzer
 }
 
 type AppError struct {
@@ -102,8 +109,9 @@ type DeleteResult struct {
 
 func NewDriveService() *DriveService {
 	return &DriveService{
-		progress:  BackupProgress{Status: "idle"},
-		emitEvent: wailsRuntime.EventsEmit,
+		progress:   BackupProgress{Status: "idle"},
+		emitEvent:  wailsRuntime.EventsEmit,
+		aiAnalyzer: NewHybridAnalyzer(),
 	}
 }
 
@@ -115,8 +123,16 @@ func NewDriveServiceWithRepositories(fileStore repository.FileRecordStore, jobSt
 }
 
 func (s *DriveService) ScanDrive(path string) ([]backup.DriveFile, error) {
+	// Recover a status left behind after a previous app exit, but never change a live job.
+	recoverInterrupted := s.aiMu.TryLock()
+	if recoverInterrupted {
+		defer s.aiMu.Unlock()
+	}
 	files, err := backup.ScanDrive(path)
 	if err != nil || s.fileStore == nil {
+		if err == nil {
+			s.registerPreviews(files)
+		}
 		return files, err
 	}
 
@@ -130,6 +146,12 @@ func (s *DriveService) ScanDrive(path string) ([]backup.DriveFile, error) {
 		}
 		if recordErr != nil {
 			return nil, &AppError{Code: "METADATA_READ_FAILED", Message: recordErr.Error()}
+		}
+		if recoverInterrupted && record.AiStatus == repository.AIStatusAnalyzing {
+			if err := s.fileStore.UpdateDescription(ctx, record.ID, record.Description, repository.AIStatusFailed); err != nil {
+				return nil, &AppError{Code: "AI_SAVE_FAILED", Message: "could not recover interrupted analysis"}
+			}
+			record.AiStatus = repository.AIStatusFailed
 		}
 		if record.Status != repository.FileRecordStatusActive {
 			if err := s.fileStore.UpdateStatus(ctx, record.ID, repository.FileRecordStatusActive); err != nil {
@@ -170,6 +192,7 @@ func (s *DriveService) ScanDrive(path string) ([]backup.DriveFile, error) {
 			AIStatus: record.AiStatus, Description: record.Description,
 		})
 	}
+	s.registerPreviews(files)
 	return files, nil
 }
 
@@ -178,6 +201,69 @@ func (s *DriveService) SetWailsContext(ctx context.Context) {
 	s.progressMu.Lock()
 	s.wailsCtx = ctx
 	s.progressMu.Unlock()
+}
+
+// ตั้งค่า	AI  สำหรับการวิเคราะห์รูปภาพ.
+func (s *DriveService) setAIAnalyzer(analyzer AIAnalyzer) {
+	s.aiAnalyzer = analyzer
+}
+
+type AIResult struct {
+	FileID      int64  `json:"fileId"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+}
+
+// อ่านรูปภาพด้วย AI และบันทึกคำอธิบายลงใน Metadata ของไฟล์.
+func (s *DriveService) AnalyzeImage(fileID int64) (AIResult, error) {
+	if !s.aiMu.TryLock() {
+		return AIResult{}, &AppError{Code: "AI_BUSY", Message: "another analysis is running"}
+	}
+	defer s.aiMu.Unlock()
+	if fileID < 1 || fileID > 2147483647 {
+		return AIResult{}, &AppError{Code: "INVALID_REQUEST", Message: "invalid file ID"}
+	}
+	if s.fileStore == nil || s.aiAnalyzer == nil {
+		return AIResult{}, &AppError{Code: "AI_UNAVAILABLE", Message: "AI analyzer is unavailable"}
+	}
+	ctx := context.Background()
+	record, err := s.fileStore.GetByID(ctx, int32(fileID))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return AIResult{}, &AppError{Code: "FILE_NOT_FOUND", Message: "file metadata was not found"}
+		}
+		return AIResult{}, &AppError{Code: "FILE_NOT_FOUND", Message: "file metadata could not be read"}
+	}
+	if record.Status != repository.FileRecordStatusActive {
+		if record.Status == repository.FileRecordStatusMissing {
+			return AIResult{}, &AppError{Code: "FILE_MISSING", Message: "image file is missing"}
+		}
+		return AIResult{}, &AppError{Code: "FILE_NOT_FOUND", Message: "file is not available for analysis"}
+	}
+	if _, err := os.Stat(record.Path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return AIResult{}, &AppError{Code: "FILE_MISSING", Message: "image file is missing"}
+		}
+		return AIResult{}, &AppError{Code: "AI_UNAVAILABLE", Message: "image file could not be accessed"}
+	}
+	if err := s.fileStore.UpdateDescription(ctx, record.ID, record.Description, repository.AIStatusAnalyzing); err != nil {
+		return AIResult{}, &AppError{Code: "AI_SAVE_FAILED", Message: "could not mark image as analyzing"}
+	}
+
+	description, err := s.aiAnalyzer.Analyze(ctx, record.Path, record.MimeType)
+	if err != nil {
+		code := "AI_UNAVAILABLE"
+		var aiErr *AIError
+		if errors.As(err, &aiErr) {
+			code = aiErr.Code
+		}
+		_ = s.fileStore.UpdateDescription(ctx, record.ID, record.Description, repository.AIStatusFailed)
+		return AIResult{}, &AppError{Code: code, Message: err.Error()}
+	}
+	if err := s.fileStore.UpdateDescription(ctx, record.ID, description, repository.AIStatusAnalyzed); err != nil {
+		return AIResult{}, &AppError{Code: "AI_SAVE_FAILED", Message: "could not save AI description"}
+	}
+	return AIResult{FileID: fileID, Description: description, Status: "success"}, nil
 }
 
 // GetFileMetadata อ่าน Metadata ของไฟล์จาก Repository ด้วย File ID.
@@ -415,11 +501,23 @@ func (s *DriveService) GetBackupProgress() BackupProgress {
 }
 
 func (s *DriveService) setProgress(progress BackupProgress) {
+	s.setProgressAt(progress, time.Now())
+}
+
+// Keep the snapshot current for every file without queuing a webview render per file.
+func (s *DriveService) setProgressAt(progress BackupProgress, now time.Time) {
 	s.progressMu.Lock()
+	changedStatus := s.progress.Status != progress.Status
 	s.progress = progress
 	ctx := s.wailsCtx
+	emit := ctx != nil && s.emitEvent != nil && (changedStatus || s.progressEmittedAt.IsZero() ||
+		now.Sub(s.progressEmittedAt) >= 100*time.Millisecond ||
+		(progress.Total > 0 && progress.Completed >= progress.Total))
+	if emit {
+		s.progressEmittedAt = now
+	}
 	s.progressMu.Unlock()
-	if ctx != nil {
+	if emit {
 		s.emitEvent(ctx, "backup:progress", progress)
 	}
 }

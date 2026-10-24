@@ -12,8 +12,7 @@ import (
 //go:embed schema.sql
 var schemaFiles embed.FS
 
-// Migrate creates the application's tables and indexes if they do not exist.
-// It is safe to call each time the application opens the database.
+
 func Migrate(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("migrate database: db is nil")
@@ -24,7 +23,7 @@ func Migrate(db *gorm.DB) error {
 		return fmt.Errorf("read database schema: %w", err)
 	}
 
-	// Remove SQL comment lines before splitting the embedded statements.
+	
 	var sqlLines []string
 	for _, line := range strings.Split(string(schema), "\n") {
 		if !strings.HasPrefix(strings.TrimSpace(line), "--") {
