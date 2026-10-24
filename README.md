@@ -31,5 +31,9 @@ wails dev
 ## เทคโนโลยี
 
 Go · Wails v2 · Nuxt · SQLite/GORM · Python/PyTorch · Florence · Gemini
+## ดาวน์โหลดโปรแกรม
 
+[ดาวน์โหลดโปรแกรมสำหรับ Windows](https://github.com/BarBQFoot/photo-backup-manager/releases/latest)
+
+แตก ZIP แล้วเปิดไฟล์ .exe เพื่อใช้งาน
 
