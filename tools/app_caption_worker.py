@@ -28,8 +28,9 @@ else:
 
 SETTINGS = {'model': 'florence-community/Florence-2-base-ft', 'task': '<CAPTION>',
             'beams': 1, 'max_new_tokens': 64, 'cache_version': 2}
-TRANSLATION_BATCH_SIZE = 100
+TRANSLATION_BATCH_SIZE = 250
 TRANSLATION_INTERVAL_SECONDS = 10
+TRANSLATION_MAX_OUTPUT_TOKENS = 16384
 CAPTION_BATCH_SIZE = 4
 _output_lock = threading.Lock()
 
@@ -277,7 +278,7 @@ def process_locked(items, model, prompt, cache, make_captioner):
             translation_started = time.perf_counter()
             try:
                 code = execute(run, payloads, batches, key, model, prompt, None,
-                               TRANSLATION_INTERVAL_SECONDS, 1, 8192, 300, on_saved=on_saved)
+                               TRANSLATION_INTERVAL_SECONDS, 1, TRANSLATION_MAX_OUTPUT_TOKENS, 300, on_saved=on_saved)
             finally:
                 metrics['translation_seconds'] += time.perf_counter() - translation_started
                 last_translation_finished = time.monotonic()

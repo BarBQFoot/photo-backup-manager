@@ -18,6 +18,6 @@ chmod +x "Setup Mac AI.command" "Start Mac App.command"
 
 หลังขึ้น `Florence ready` และ `AI setup complete` ให้ดับเบิลคลิก `Start Mac App.command` เครื่องต้องมี Go, Node.js, Wails v2 และ Xcode Command Line Tools ของแอปเดิมอยู่แล้ว ตัวติดตั้งนี้เตรียมส่วน AI ไม่ติดตั้งเครื่องมือ build เหล่านั้น และไม่สร้าง API key ให้
 
-ตั้ง `GEMINI_API_KEY` ใน `.env` ของโปรเจกต์เหมือนเดิม รุ่นนี้ส่งข้อความไปแปลชุดละ 100 รายการ พัก 10 วินาทีระหว่างชุด เริ่มทดสอบด้วยสำเนารูป 1 รูปก่อน โปรแกรมเลือก MPS เมื่อใช้ได้ แต่ยังต้องตรวจการทำงานจริงบน Mac เป้าหมาย
+ตั้ง `GEMINI_API_KEY` ใน `.env` ของโปรเจกต์เหมือนเดิม รุ่นนี้ส่งข้อความไปแปลชุดละ 250 รายการ พัก 10 วินาทีระหว่างชุด เพดานคำตอบ 16,384 tokens เริ่มทดสอบด้วยสำเนารูป 1 รูปก่อน โปรแกรมเลือก MPS เมื่อใช้ได้ แต่ยังต้องตรวจการทำงานจริงบน Mac เป้าหมาย
 
 แหล่งที่มา: [Florence](https://huggingface.co/florence-community/Florence-2-base-ft), [Hugging Face downloads](https://huggingface.co/docs/huggingface_hub/guides/download), [PyTorch MPS](https://docs.pytorch.org/docs/stable/notes/mps.html)

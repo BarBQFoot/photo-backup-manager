@@ -75,7 +75,7 @@ const emptyTitle = computed(() => {
           <AppIcon name="sparkle" />วิเคราะห์รูปที่เลือก
         </button>
       </div>
-      <p class="helper" role="status">{{ state.ai.running ? state.ai.message : 'เลือกภาพที่ต้องการ ระบบอ่านภาพบนเครื่อง แล้วแปลคำบรรยายครั้งละไม่เกิน 100 รูป พักระหว่างชุด 10 วินาที' }}</p>
+      <p class="helper" role="status">{{ state.ai.running ? state.ai.message : 'เลือกภาพที่ต้องการ ระบบอ่านภาพบนเครื่อง แล้วแปลคำบรรยายครั้งละไม่เกิน 250 รูป พักระหว่างชุด 10 วินาที' }}</p>
     </section>
 
     <div class="gallery-layout">

@@ -42,6 +42,7 @@ class WorkerTests(unittest.TestCase):
 
     def api(self, model, key, body, timeout):
         self.assertEqual(key, 'fake-test-key')
+        self.assertEqual(body['generationConfig']['maxOutputTokens'], 16384)
         self.assertNotIn('inline_data', json.dumps(body))
         text = body['contents'][0]['parts'][0]['text']
         payload = json.loads(text[text.index('\n[')+1:])
@@ -57,41 +58,41 @@ class WorkerTests(unittest.TestCase):
             worker.process(request, make_captioner=captioner)
         return sleep
 
-    def test_batch_100_and_cache_reuses_captions_without_api(self):
-        request = self.request(101)
+    def test_batch_250_and_cache_reuses_captions_without_api(self):
+        request = self.request(251)
         sleep = self.run_worker(request)
         self.assertEqual(sleep.call_count, 1)
         self.assertGreater(sleep.call_args.args[0], 0)
         self.assertLessEqual(sleep.call_args.args[0], 10)
-        self.assertEqual(self.api_sizes, [100, 1])
-        self.assertEqual(FakeCaptioner.calls, 101)
+        self.assertEqual(self.api_sizes, [250, 1])
+        self.assertEqual(FakeCaptioner.calls, 251)
         results = [e for e in self.events if e['type'] == 'result']
         self.assertEqual({e['file_id'] for e in results}, {i['file_id'] for i in request['items']})
         self.events.clear()
         # DB identities can change without invalidating the content cache.
-        for n, item in enumerate(request['items'], 101):
+        for n, item in enumerate(request['items'], 251):
             item['file_id'] = f'file_{n}'
         self.run_worker(request, api=lambda *a: self.fail('cached results must not send requests'))
-        self.assertEqual(FakeCaptioner.calls, 101)
-        self.assertEqual(len([e for e in self.events if e['type'] == 'result']), 101)
+        self.assertEqual(FakeCaptioner.calls, 251)
+        self.assertEqual(len([e for e in self.events if e['type'] == 'result']), 251)
 
     def test_timeout_preserves_completed_batch_and_resume_only_remaining(self):
-        request = self.request(101)
+        request = self.request(251)
         def fail_second(*args):
             if self.api_sizes:
                 raise translator.APIError('timeout; completion unknown', False)
             return self.api(*args)
         with self.assertRaisesRegex(ValueError, 'timeout'):
             self.run_worker(request, api=fail_second)
-        self.assertEqual(len([e for e in self.events if e['type'] == 'result']), 100)
+        self.assertEqual(len([e for e in self.events if e['type'] == 'result']), 250)
         self.events.clear()
         self.run_worker(request)
-        self.assertEqual(self.api_sizes, [100, 1])
-        self.assertEqual(FakeCaptioner.calls, 101)
-        self.assertEqual(len([e for e in self.events if e['type'] == 'result']), 101)
+        self.assertEqual(self.api_sizes, [250, 1])
+        self.assertEqual(FakeCaptioner.calls, 251)
+        self.assertEqual(len([e for e in self.events if e['type'] == 'result']), 251)
 
     def test_old_50_item_run_does_not_override_new_batch_size(self):
-        request = self.request(101)
+        request = self.request(251)
         def unavailable(*args):
             raise translator.APIError('timeout; completion unknown', False)
         with patch.object(worker, 'TRANSLATION_BATCH_SIZE', 50):
@@ -100,8 +101,8 @@ class WorkerTests(unittest.TestCase):
         old_batch = next(Path(request['cache_dir']).glob('run_*/translation_batches/batch_001.json'))
         old_contents = old_batch.read_bytes()
         self.run_worker(request)
-        self.assertEqual(self.api_sizes, [100, 1])
-        self.assertEqual(FakeCaptioner.calls, 101)
+        self.assertEqual(self.api_sizes, [250, 1])
+        self.assertEqual(FakeCaptioner.calls, 251)
         self.assertEqual(old_batch.read_bytes(), old_contents)
 
     def test_modified_image_invalidates_both_caches(self):
