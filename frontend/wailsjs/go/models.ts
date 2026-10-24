@@ -33,6 +33,30 @@ export namespace backup {
 
 export namespace service {
 	
+	export class AIBatchTimings {
+	    preparationMs: number;
+	    markStatusMs: number;
+	    workerMs: number;
+	    saveResultsMs: number;
+	    totalMs: number;
+	    workerStartupMs: number;
+	    workerReused: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIBatchTimings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.preparationMs = source["preparationMs"];
+	        this.markStatusMs = source["markStatusMs"];
+	        this.workerMs = source["workerMs"];
+	        this.saveResultsMs = source["saveResultsMs"];
+	        this.totalMs = source["totalMs"];
+	        this.workerStartupMs = source["workerStartupMs"];
+	        this.workerReused = source["workerReused"];
+	    }
+	}
 	export class AIFailure {
 	    fileId: number;
 	    message: string;
@@ -66,6 +90,7 @@ export namespace service {
 	export class AIBatchResult {
 	    results: AIResult[];
 	    failures: AIFailure[];
+	    timings: AIBatchTimings;
 	
 	    static createFrom(source: any = {}) {
 	        return new AIBatchResult(source);
@@ -75,6 +100,7 @@ export namespace service {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.results = this.convertValues(source["results"], AIResult);
 	        this.failures = this.convertValues(source["failures"], AIFailure);
+	        this.timings = this.convertValues(source["timings"], AIBatchTimings);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -95,6 +121,7 @@ export namespace service {
 		    return a;
 		}
 	}
+	
 	
 	
 	export class AISetupStatus {

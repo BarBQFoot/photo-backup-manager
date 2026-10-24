@@ -2,12 +2,67 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestHybridResidentRealModelReuse(t *testing.T) {
+	if os.Getenv("PHOTO_AI_RESIDENT_SMOKE") != "1" {
+		t.Skip("opt-in local GPU model reuse test; no API key")
+	}
+	root, _ := filepath.Abs("..")
+	python := filepath.Join(root, ".venv", "Scripts", "python.exe")
+	if _, err := os.Stat(python); err != nil {
+		t.Skip("local Windows Python unavailable")
+	}
+	t.Setenv("PHOTO_AI_PYTHON", python)
+	cache := t.TempDir()
+	t.Setenv("PHOTO_AI_CACHE", cache)
+	t.Setenv("GEMINI_API_KEY", "")
+	a := NewHybridAnalyzer()
+	defer a.Close()
+	var rows []map[string]any
+	pid := 0
+	for index, file := range []string{"000000025139.jpg", "000000026204.jpg"} {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		started := time.Now()
+		err := a.AnalyzeBatch(ctx, []AIInput{{FileID: "file_1", Path: filepath.Join(root, "test-images", "50", file)}}, func(AIEvent) {})
+		cancel()
+		if err == nil || !strings.Contains(err.Error(), "GEMINI_API_KEY is not configured") {
+			t.Fatalf("unexpected model result: %v", err)
+		}
+		if index == 0 {
+			pid = a.worker.cmd.Process.Pid
+		} else if pid != a.worker.cmd.Process.Pid {
+			t.Fatal("Python restarted between jobs")
+		}
+		data, err := os.ReadFile(filepath.Join(cache, "captions", "pipeline_summary.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var row map[string]any
+		if err := json.Unmarshal(data, &row); err != nil {
+			t.Fatal(err)
+		}
+		if row["model_reused"] != (index == 1) || row["caption_cache_hits"] != float64(0) {
+			t.Fatalf("did not generate uncached caption with expected reuse: %#v", row)
+		}
+		row["go_request_seconds"] = time.Since(started).Seconds()
+		row["worker_reused"] = a.lastWorkerStats().Reused
+		rows = append(rows, row)
+		t.Logf("job %d: %.3fs, model load %v, reused=%v", index+1, row["go_request_seconds"], row["model_load_seconds"], row["model_reused"])
+	}
+	output := filepath.Join(root, "results", "performance", "resident_worker_smoke.json")
+	_ = os.MkdirAll(filepath.Dir(output), 0o700)
+	encoded, _ := json.MarshalIndent(rows, "", "  ")
+	if err := os.WriteFile(output, encoded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // Optional process smoke check against a separate cache populated with mocked
 // translations by the Python smoke test. An empty key prevents real API calls.
@@ -32,7 +87,9 @@ func TestHybridCachedProcessSmoke(t *testing.T) {
 		{FileID: "file_102", Path: filepath.Join(root, "test-images", "1000", "000000025139.jpg")},
 	}
 	results := map[string]string{}
-	err = NewHybridAnalyzer().AnalyzeBatch(context.Background(), items, func(event AIEvent) {
+	analyzer := NewHybridAnalyzer()
+	defer analyzer.Close()
+	err = analyzer.AnalyzeBatch(context.Background(), items, func(event AIEvent) {
 		if event.Type == "result" {
 			results[event.FileID] = event.Caption
 		}
@@ -63,7 +120,9 @@ func TestHybridRealModelSubprocess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	phase := ""
-	err = NewHybridAnalyzer().AnalyzeBatch(ctx, []AIInput{{FileID: "file_1", Path: filepath.Join(root, "test-images", "1000", "000000166478.jpg")}}, func(event AIEvent) {
+	analyzer := NewHybridAnalyzer()
+	defer analyzer.Close()
+	err = analyzer.AnalyzeBatch(ctx, []AIInput{{FileID: "file_1", Path: filepath.Join(root, "test-images", "1000", "000000166478.jpg")}}, func(event AIEvent) {
 		if event.Type == "progress" {
 			phase = event.Phase
 		}
@@ -71,7 +130,7 @@ func TestHybridRealModelSubprocess(t *testing.T) {
 			t.Errorf("photo failed: %s", event.Message)
 		}
 	})
-	if err == nil || !strings.Contains(err.Error(), "GEMINI_API_KEY is not configured") || phase != "translating" {
+	if err == nil || !strings.Contains(err.Error(), "GEMINI_API_KEY is not configured") || phase != "pipeline" {
 		t.Fatalf("local model did not complete: phase=%s err=%v", phase, err)
 	}
 }

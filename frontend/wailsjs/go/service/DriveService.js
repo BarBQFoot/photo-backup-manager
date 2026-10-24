@@ -10,6 +10,10 @@ export function AnalyzeImages(arg1) {
   return window['go']['service']['DriveService']['AnalyzeImages'](arg1);
 }
 
+export function Close() {
+  return window['go']['service']['DriveService']['Close']();
+}
+
 export function DeleteFile(arg1, arg2) {
   return window['go']['service']['DriveService']['DeleteFile'](arg1, arg2);
 }

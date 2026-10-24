@@ -81,7 +81,7 @@ def main():
     parser.add_argument("--pilot", action="store_true", help="Use the fixed 10-photo pilot selection")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--device", choices=["auto", "cuda", "mps", "cpu"], default="auto")
-    parser.add_argument("--beams", type=int, default=3)
+    parser.add_argument("--beams", type=int, default=1)
     parser.add_argument("--max-new-tokens", type=int, default=64)
     args = parser.parse_args()
     if args.beams < 1 or args.max_new_tokens < 1 or (args.limit is not None and args.limit < 1):

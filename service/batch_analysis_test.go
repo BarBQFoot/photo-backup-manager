@@ -140,3 +140,60 @@ func TestEmbeddedWorkerResources(t *testing.T) {
 		}
 	}
 }
+
+type bulkBatchStore struct {
+	*batchStore
+	marks, writes int
+	markError     bool
+}
+
+func (f *bulkBatchStore) MarkAnalyzing(_ context.Context, ids []int32) ([]int32, error) {
+	f.marks++
+	if f.markError {
+		return nil, errors.New("test bulk transaction failure")
+	}
+	for _, id := range ids {
+		f.records[id].AiStatus = repository.AIStatusAnalyzing
+	}
+	return ids, nil
+}
+
+func (f *bulkBatchStore) UpdateDescription(ctx context.Context, id int32, caption, status string) error {
+	f.writes++
+	return f.batchStore.UpdateDescription(ctx, id, caption, status)
+}
+
+func TestBatchUsesSingleBulkMarkBeforeWorker(t *testing.T) {
+	s, store := setupBatch(t)
+	bulk := &bulkBatchStore{batchStore: store}
+	s.fileStore = bulk
+	s.setAIAnalyzer(batchMock{run: func(in []AIInput, cb func(AIEvent)) error {
+		if bulk.marks != 1 || bulk.writes != 0 {
+			t.Fatalf("marks %d writes %d", bulk.marks, bulk.writes)
+		}
+		for _, input := range in {
+			cb(AIEvent{Type: "result", FileID: input.FileID, Caption: "new caption"})
+		}
+		return nil
+	}})
+	out, err := s.AnalyzeImages([]int64{1, 2})
+	if err != nil || len(out.Results) != 2 || bulk.writes != 2 {
+		t.Fatalf("%#v %v", out, err)
+	}
+}
+
+func TestBatchFailedBulkMarkDoesNotStartWorker(t *testing.T) {
+	s, store := setupBatch(t)
+	s.fileStore = &bulkBatchStore{batchStore: store, markError: true}
+	s.setAIAnalyzer(batchMock{run: func([]AIInput, func(AIEvent)) error {
+		t.Fatal("worker must not start after failed transaction")
+		return nil
+	}})
+	out, err := s.AnalyzeImages([]int64{1, 2})
+	if err != nil || len(out.Results) != 0 || len(out.Failures) != 2 {
+		t.Fatalf("%#v %v", out, err)
+	}
+	if store.records[1].Description != "old" {
+		t.Fatal("caption lost")
+	}
+}

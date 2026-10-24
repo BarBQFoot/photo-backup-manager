@@ -38,6 +38,42 @@ type FileRecordStore interface {
 	SearchByDescription(ctx context.Context, destination, keyword string) ([]*dbmodel.FileRecord, error)
 }
 
+// Optional bulk capability; only AI status changes, preserving captions and file metadata.
+type AIBatchStatusStore interface {
+	MarkAnalyzing(context.Context, []int32) ([]int32, error)
+}
+
+func (r *fileRecordRepository) MarkAnalyzing(ctx context.Context, ids []int32) ([]int32, error) {
+	marked := []int32{}
+	err := r.q.UnderlyingDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Keep SQL parameters below SQLite limits while committing the whole selection once.
+		for start := 0; start < len(ids); start += 500 {
+			end := min(start+500, len(ids))
+			var records []dbmodel.FileRecord
+			if err := tx.Select("id").Where("id IN ? AND status = ?", ids[start:end], FileRecordStatusActive).Find(&records).Error; err != nil {
+				return err
+			}
+			active := make([]int32, 0, len(records))
+			for _, record := range records {
+				active = append(active, record.ID)
+			}
+			if len(active) == 0 {
+				continue
+			}
+			if err := tx.Model(&dbmodel.FileRecord{}).Where("id IN ? AND status = ?", active, FileRecordStatusActive).
+				UpdateColumn("ai_status", AIStatusAnalyzing).Error; err != nil {
+				return err
+			}
+			marked = append(marked, active...)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("mark AI selection: %w", err)
+	}
+	return marked, nil
+}
+
 // ListByDestinationPath เพิ่มมาเพื่อให้ Backup ตรวจ Missing Record ตาม Destination ได้.
 func (r *fileRecordRepository) ListByDestinationPath(ctx context.Context, destination string) ([]*dbmodel.FileRecord, error) {
 	if strings.TrimSpace(destination) == "" {

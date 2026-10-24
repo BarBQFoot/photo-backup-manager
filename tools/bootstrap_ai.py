@@ -11,6 +11,7 @@ from pathlib import Path
 
 MODEL = 'florence-community/Florence-2-base-ft'
 MODEL_FILES = ('config.json', 'model.safetensors', 'tokenizer.json', 'preprocessor_config.json')
+MODEL_PATTERNS = ['*.json', '*.safetensors', '*.txt', '*.model', '*.tiktoken']
 _output_lock = threading.Lock()
 
 
@@ -48,7 +49,8 @@ def check():
     model_path = ''
     model_error = ''
     try:
-        folder, missing, model_error = inspect_model(snapshot_download(MODEL, local_files_only=True))
+        folder, missing, model_error = inspect_model(snapshot_download(
+            MODEL, local_files_only=True, allow_patterns=MODEL_PATTERNS))
         model_path = str(folder)
         ready = not missing
     except (OSError, ValueError) as error:
@@ -92,7 +94,7 @@ def download():
     try:
         folder, missing, error = inspect_model(snapshot_download(
             MODEL, token=False, max_workers=2, tqdm_class=Progress,
-            allow_patterns=['*.json', '*.safetensors', '*.txt', '*.model', '*.tiktoken']))
+            allow_patterns=MODEL_PATTERNS))
     except Exception as error:
         raise RuntimeError(f'{type(error).__name__}: {error}\nตำแหน่งแคช: {cache_path}') from error
     if missing:

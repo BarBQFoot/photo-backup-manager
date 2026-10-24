@@ -31,7 +31,14 @@ func NewApp(db *gorm.DB) *App {
 	}
 }
 
-func (a *App) shutdown(context.Context) { a.aiSetup.Cancel() }
+func (a *App) shutdown(context.Context) {
+	if a.aiSetup != nil {
+		a.aiSetup.Cancel()
+	}
+	if a.driveService != nil {
+		_ = a.driveService.Close()
+	}
+}
 
 func (a *App) GetAISetupStatus() service.AISetupStatus { return a.aiSetup.GetStatus() }
 

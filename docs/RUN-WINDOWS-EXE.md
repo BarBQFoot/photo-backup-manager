@@ -62,3 +62,13 @@ go test ./service -run '^TestAISetupRealExistingMachine$' -v -count=1
 ยังต้องทดสอบ EXE บน Windows เครื่องใหม่จริงเพื่อยืนยันกรณี driver, Visual C++ runtime, proxy/antivirus และสิทธิ์ของเครื่องนั้น ไม่ได้อ้างว่าการทดสอบใน environment แยกแทนเครื่อง Windows สะอาดได้ และยังไม่ยืนยัน build Mac/Linux
 
 แหล่งที่มา: [uv Python management](https://docs.astral.sh/uv/guides/install-python/), [uv 0.13.5](https://github.com/astral-sh/uv/releases/tag/0.13.5), [PyTorch](https://pytorch.org/get-started/locally/), [Florence](https://huggingface.co/florence-community/Florence-2-base-ft), [Wails options](https://wails.io/docs/reference/options/)
+
+## ดาวน์โหลด PyTorch หมดเวลารอ
+
+ตัวติดตั้งกำหนด `UV_HTTP_TIMEOUT=300` วินาทีต่อการอ่าน HTTP, connect timeout 60 วินาที, HTTP retries 3 และดาวน์โหลดพร้อมกันไม่เกิน 2 ไฟล์ เพื่อรองรับ PyTorch CUDA wheel ขนาดหลาย GB บนเครือข่ายที่สะดุด ค่าเริ่มต้น HTTP read timeout ของ uv คือ 30 วินาทีตาม [เอกสาร uv](https://docs.astral.sh/uv/reference/environment/#uv_http_timeout) การเพิ่ม timeout ไม่ได้ทำให้ดาวน์โหลดเร็วขึ้นหรือแก้เครือข่ายที่บล็อกเว็บ
+
+หากล้มเหลว UI จะแสดงข้อความท้ายจากตัวติดตั้งไม่เกิน 8 บรรทัด เพื่อให้เห็นแพ็กเกจ/URL และสาเหตุร่วมกัน ไม่เหลือเพียง `cause: operation timed out` ใช้ปุ่มลองอีกครั้งในรุ่นใหม่โดยไม่ล้างแคชที่สำเร็จแล้ว
+
+## ตรวจ snapshot Florence
+
+ตัวดาวน์โหลดและตัวตรวจแคชออฟไลน์ใช้ `MODEL_PATTERNS` เดียวกัน (`*.json`, `*.safetensors`, `*.txt`, `*.model`, `*.tiktoken`) พร้อมตรวจไฟล์ runtime หลักและขนาดไม่เป็นศูนย์ ก่อนโหลดทดสอบจริง จึงไม่ถือว่าขาดโมเดลเพียงเพราะไม่มี README.md หรือ .gitattributes ที่ไม่ได้เลือกดาวน์โหลด huggingface_hub รุ่นที่ตรวจความครบของทั้ง snapshot จะตรวจเฉพาะไฟล์ตามตัวกรองเดียวกัน

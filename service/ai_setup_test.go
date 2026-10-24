@@ -256,6 +256,11 @@ func TestAISetupEnvironmentDoesNotPassGeminiKeyOrInheritedUVConfig(t *testing.T)
 	if strings.Contains(env, "test-secret") || strings.Contains(env, "example.invalid") || strings.Contains(env, "loglevel=Info") {
 		t.Fatal("setup inherited secret/config")
 	}
+	for _, setting := range []string{"UV_HTTP_TIMEOUT=300", "UV_HTTP_CONNECT_TIMEOUT=60", "UV_HTTP_RETRIES=3", "UV_CONCURRENT_DOWNLOADS=2"} {
+		if !strings.Contains(env, setting) {
+			t.Fatalf("missing download setting: %s", setting)
+		}
+	}
 }
 
 func TestBootstrapDownloadChecksHashAndPreservesDestinationOnFailure(t *testing.T) {

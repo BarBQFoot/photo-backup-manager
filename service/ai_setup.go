@@ -113,6 +113,7 @@ func setupEnvironment(cache string) []string {
 	}
 	return append(env, "UV_PYTHON_INSTALL_DIR="+filepath.Join(cache, "python"),
 		"UV_CACHE_DIR="+filepath.Join(cache, "packages"), "UV_NO_CONFIG=1", "UV_NO_PROGRESS=1",
+		"UV_HTTP_TIMEOUT=300", "UV_HTTP_CONNECT_TIMEOUT=60", "UV_HTTP_RETRIES=3", "UV_CONCURRENT_DOWNLOADS=2",
 		"HF_HUB_DISABLE_TELEMETRY=1", "HF_HUB_DISABLE_SYMLINKS_WARNING=1")
 }
 
@@ -129,12 +130,14 @@ type setupReport struct {
 }
 
 type setupOutput struct {
-	mu        sync.Mutex
-	buffer    string
-	phase     string
-	report    setupReport
-	lastError string
-	update    func(AISetupStatus)
+	mu            sync.Mutex
+	buffer        string
+	phase         string
+	report        setupReport
+	lastError     string
+	recent        []string
+	protocolError bool
+	update        func(AISetupStatus)
 }
 
 func (w *setupOutput) line(line string) {
@@ -161,6 +164,7 @@ func (w *setupOutput) line(line string) {
 			w.report.Device, w.report.Verified = event.Device, true
 		case "error":
 			w.lastError = event.Detail
+			w.protocolError = true
 		case "progress":
 			update := event.AISetupStatus
 			update.Phase = w.phase
@@ -173,6 +177,10 @@ func (w *setupOutput) line(line string) {
 	}
 	if w.phase == "python" || w.phase == "pytorch" || w.phase == "packages" {
 		w.lastError = line
+		w.recent = append(w.recent, line)
+		if len(w.recent) > 8 {
+			w.recent = w.recent[len(w.recent)-8:]
+		}
 		w.update(AISetupStatus{Phase: w.phase, Detail: line})
 	}
 }
@@ -208,6 +216,9 @@ func runSetupProcess(ctx context.Context, cache, root, phase, executable string,
 	output.mu.Unlock()
 	if err != nil {
 		detail := output.lastError
+		if !output.protocolError && len(output.recent) > 0 {
+			detail = strings.Join(output.recent, "\n")
+		}
 		if detail == "" {
 			detail = err.Error()
 		}

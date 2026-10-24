@@ -8,7 +8,7 @@ export type BackupResult = service.BackupResult
 export type BackupJob = service.BackupJob
 export type Progress = service.BackupProgress
 export type AIResult = service.AIResult
-export type AIProgress = { type: string; phase?: string; completed?: number; total?: number; file_id?: string; caption?: string }
+export type AIProgress = { type: string; phase?: string; completed?: number; total?: number; captioned?: number; translated?: number; detail?: string; file_id?: string; caption?: string }
 export type AISetupStatus = { status: string; phase: string; detail: string; completed: number; total: number; unit: string; device: string; error: string; skipped?: string[] | null }
 
 export function isDesktop() {

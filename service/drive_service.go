@@ -115,6 +115,13 @@ func NewDriveService() *DriveService {
 	}
 }
 
+func (s *DriveService) Close() error {
+	if closer, ok := s.aiAnalyzer.(interface{ Close() error }); ok {
+		return closer.Close()
+	}
+	return nil
+}
+
 func NewDriveServiceWithRepositories(fileStore repository.FileRecordStore, jobStore repository.BackupJobStore) *DriveService {
 	service := NewDriveService()
 	service.fileStore = fileStore

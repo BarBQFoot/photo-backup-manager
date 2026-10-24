@@ -97,6 +97,7 @@ export function usePhotoManager() {
     const files = state.files.filter(file => selectedPaths.has(file.path) && file.fileId && file.fileStatus === 'available' && file.aiStatus !== 'analyzing')
     if (!files.length) return
     await run('กำลังวิเคราะห์รูปที่เลือก', async () => {
+      const analysisStarted = performance.now()
       const selectedIds = new Set(files.map(file => file.fileId!))
       const update = (id: number, changes: Partial<DriveFile>) => {
         const index = state.files.findIndex(file => file.fileId === id)
@@ -105,7 +106,10 @@ export function usePhotoManager() {
       }
       const unsubscribe = desktop.onAIProgress(event => {
         if (event.type === 'progress' && event.phase !== 'done') {
-          state.busy = `กำลังวิเคราะห์: ${event.phase === 'captioning' ? 'อ่านภาพ' : 'แปลคำบรรยาย'} ${event.completed ?? 0}/${event.total ?? files.length} รูป`
+          const total = event.total ?? files.length
+          state.busy = event.detail || (event.phase === 'pipeline'
+            ? `กำลังวิเคราะห์: อ่านภาพ ${event.captioned ?? 0}/${total} · คำบรรยายไทย ${event.translated ?? 0}/${total} รูป`
+            : `กำลังวิเคราะห์: ${event.phase === 'captioning' ? 'อ่านภาพ' : 'แปลคำบรรยาย'} ${event.completed ?? 0}/${total} รูป`)
         }
         if (event.type === 'result' && event.file_id && event.caption) {
           const id = Number(event.file_id.replace(/^file_/, ''))
@@ -136,6 +140,10 @@ export function usePhotoManager() {
           if (state.detail) state.detail = state.files.find(file => file.fileId === state.detail?.fileId) ?? null
         } else {
           for (const file of state.files.filter(file => selectedIds.has(file.fileId!) && file.aiStatus === 'analyzing')) update(file.fileId!, { aiStatus: 'failed' })
+        }
+        if (state.notice) {
+          const elapsed = Math.round((performance.now() - analysisStarted) / 1000)
+          state.notice += ` · ใช้เวลา ${Math.floor(elapsed / 60)} นาที ${elapsed % 60} วินาที`
         }
       }
     })

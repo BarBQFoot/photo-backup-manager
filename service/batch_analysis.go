@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -19,13 +20,25 @@ type AIFailure struct {
 }
 
 type AIBatchResult struct {
-	Results  []AIResult  `json:"results"`
-	Failures []AIFailure `json:"failures"`
+	Results  []AIResult     `json:"results"`
+	Failures []AIFailure    `json:"failures"`
+	Timings  AIBatchTimings `json:"timings"`
+}
+
+type AIBatchTimings struct {
+	PreparationMs   int64 `json:"preparationMs"`
+	MarkStatusMs    int64 `json:"markStatusMs"`
+	WorkerMs        int64 `json:"workerMs"`
+	SaveResultsMs   int64 `json:"saveResultsMs"`
+	TotalMs         int64 `json:"totalMs"`
+	WorkerStartupMs int64 `json:"workerStartupMs"`
+	WorkerReused    bool  `json:"workerReused"`
 }
 
 // AnalyzeImages keeps DB identities separate from filenames and saves each completed result.
-func (s *DriveService) AnalyzeImages(fileIDs []int64) (AIBatchResult, error) {
-	out := AIBatchResult{Results: []AIResult{}, Failures: []AIFailure{}}
+func (s *DriveService) AnalyzeImages(fileIDs []int64) (out AIBatchResult, resultErr error) {
+	started := time.Now()
+	out = AIBatchResult{Results: []AIResult{}, Failures: []AIFailure{}}
 	if s.fileStore == nil || s.aiAnalyzer == nil {
 		return out, &AppError{Code: "AI_UNAVAILABLE", Message: "AI analyzer is unavailable"}
 	}
@@ -33,6 +46,21 @@ func (s *DriveService) AnalyzeImages(fileIDs []int64) (AIBatchResult, error) {
 		return out, &AppError{Code: "AI_BUSY", Message: "another analysis is running"}
 	}
 	defer s.aiMu.Unlock()
+	recordTimings := false
+	var saveDuration time.Duration
+	defer func() {
+		out.Timings.TotalMs = time.Since(started).Milliseconds()
+		out.Timings.SaveResultsMs = saveDuration.Milliseconds()
+		if cache, err := aiCacheDir(); err == nil && recordTimings {
+			_ = os.MkdirAll(cache, 0o700)
+			_ = writeSetupMarker(filepath.Join(cache, "analysis_summary.json"), struct {
+				Timings   AIBatchTimings `json:"timings"`
+				Requested int            `json:"requested"`
+				Completed int            `json:"completed"`
+				Failed    int            `json:"failed"`
+			}{out.Timings, len(fileIDs), len(out.Results), len(out.Failures)})
+		}
+	}()
 	if len(fileIDs) == 0 || len(fileIDs) > 10000 {
 		return out, &AppError{Code: "INVALID_REQUEST", Message: "select 1 to 10000 photos"}
 	}
@@ -42,6 +70,7 @@ func (s *DriveService) AnalyzeImages(fileIDs []int64) (AIBatchResult, error) {
 		ctx = s.wailsCtx
 	}
 	s.progressMu.RUnlock()
+	s.emitAIProgress(ctx, AIEvent{Type: "progress", Phase: "preparing", Detail: "กำลังตรวจข้อมูลรูปและเตรียมสถานะ", Total: len(fileIDs)})
 	inputs := []AIInput{}
 	records := map[string]dbmodel.FileRecord{}
 	infos := map[string]os.FileInfo{}
@@ -71,14 +100,44 @@ func (s *DriveService) AnalyzeImages(fileIDs []int64) (AIBatchResult, error) {
 			continue
 		}
 		fid := "file_" + strconv.FormatInt(id, 10)
-		if err := s.fileStore.UpdateDescription(ctx, record.ID, record.Description, repository.AIStatusAnalyzing); err != nil {
-			out.Failures = append(out.Failures, AIFailure{id, "could not mark image as analyzing"})
-			continue
-		}
 		records[fid] = *record
 		infos[fid] = info
 		inputs = append(inputs, AIInput{FileID: fid, Path: record.Path})
 	}
+	markStarted := time.Now()
+	marked := map[int32]bool{}
+	if batchStore, ok := s.fileStore.(repository.AIBatchStatusStore); ok {
+		ids := make([]int32, 0, len(inputs))
+		for _, input := range inputs {
+			ids = append(ids, records[input.FileID].ID)
+		}
+		if len(ids) > 0 {
+			if accepted, err := batchStore.MarkAnalyzing(ctx, ids); err == nil {
+				for _, id := range accepted {
+					marked[id] = true
+				}
+			}
+		}
+	} else {
+		for _, input := range inputs {
+			record := records[input.FileID]
+			if err := s.fileStore.UpdateDescription(ctx, record.ID, record.Description, repository.AIStatusAnalyzing); err == nil {
+				marked[record.ID] = true
+			}
+		}
+	}
+	acceptedInputs := inputs[:0]
+	for _, input := range inputs {
+		if marked[records[input.FileID].ID] {
+			acceptedInputs = append(acceptedInputs, input)
+		} else {
+			out.Failures = append(out.Failures, AIFailure{int64(records[input.FileID].ID), "could not mark image as analyzing"})
+			delete(records, input.FileID)
+		}
+	}
+	inputs = acceptedInputs
+	out.Timings.MarkStatusMs = time.Since(markStarted).Milliseconds()
+	out.Timings.PreparationMs = time.Since(started).Milliseconds()
 	fail := func(fid, message string) {
 		record, ok := records[fid]
 		if !ok || finished[fid] {
@@ -97,6 +156,8 @@ func (s *DriveService) AnalyzeImages(fileIDs []int64) (AIBatchResult, error) {
 			s.emitAIProgress(ctx, event)
 			return
 		}
+		saveStarted := time.Now()
+		defer func() { saveDuration += time.Since(saveStarted) }()
 		record, ok := records[event.FileID]
 		if !ok || finished[event.FileID] {
 			protocolErr = true
@@ -127,7 +188,9 @@ func (s *DriveService) AnalyzeImages(fileIDs []int64) (AIBatchResult, error) {
 		s.emitAIProgress(ctx, event)
 	}
 	var workerErr error
+	workerStarted := time.Now()
 	if len(inputs) > 0 {
+		_, recordTimings = s.aiAnalyzer.(*HybridAnalyzer)
 		if analyzer, ok := s.aiAnalyzer.(BatchAIAnalyzer); ok {
 			workerErr = analyzer.AnalyzeBatch(ctx, inputs, onEvent)
 		} else {
@@ -141,6 +204,11 @@ func (s *DriveService) AnalyzeImages(fileIDs []int64) (AIBatchResult, error) {
 				onEvent(AIEvent{Type: "result", FileID: input.FileID, Caption: caption})
 			}
 		}
+	}
+	out.Timings.WorkerMs = time.Since(workerStarted).Milliseconds()
+	if hybrid, ok := s.aiAnalyzer.(*HybridAnalyzer); ok {
+		stats := hybrid.lastWorkerStats()
+		out.Timings.WorkerReused, out.Timings.WorkerStartupMs = stats.Reused, stats.StartupMs
 	}
 	if protocolErr && workerErr == nil {
 		workerErr = errors.New("AI returned an unknown or duplicated file ID")

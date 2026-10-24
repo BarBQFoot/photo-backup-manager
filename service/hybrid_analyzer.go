@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -15,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
 	aidocs "photo-backup-manager/docs"
 	aitools "photo-backup-manager/tools"
@@ -26,20 +26,30 @@ type AIInput struct {
 }
 
 type AIEvent struct {
-	Type      string `json:"type"`
-	Phase     string `json:"phase,omitempty"`
-	Completed int    `json:"completed,omitempty"`
-	Total     int    `json:"total,omitempty"`
-	FileID    string `json:"file_id,omitempty"`
-	Caption   string `json:"caption,omitempty"`
-	Message   string `json:"message,omitempty"`
+	Type       string `json:"type"`
+	Phase      string `json:"phase,omitempty"`
+	Completed  int    `json:"completed,omitempty"`
+	Total      int    `json:"total,omitempty"`
+	Captioned  int    `json:"captioned,omitempty"`
+	Translated int    `json:"translated,omitempty"`
+	FileID     string `json:"file_id,omitempty"`
+	Caption    string `json:"caption,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Detail     string `json:"detail,omitempty"`
 }
 
 type BatchAIAnalyzer interface {
 	AnalyzeBatch(context.Context, []AIInput, func(AIEvent)) error
 }
 
-type HybridAnalyzer struct{}
+type HybridAnalyzer struct {
+	jobMu       sync.Mutex
+	mu          sync.Mutex
+	worker      *residentAIWorker
+	closed      bool
+	command     func(string, ...string) *exec.Cmd
+	workerStats residentWorkerStats
+}
 
 func NewHybridAnalyzer() *HybridAnalyzer { return &HybridAnalyzer{} }
 
@@ -185,6 +195,11 @@ func aiWorkerResources(cache string) (string, error) {
 }
 
 func (a *HybridAnalyzer) AnalyzeBatch(ctx context.Context, items []AIInput, onEvent func(AIEvent)) error {
+	a.jobMu.Lock()
+	defer a.jobMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	python, err := aiPython()
 	if err != nil {
 		return err
@@ -209,55 +224,5 @@ func (a *HybridAnalyzer) AnalyzeBatch(ctx context.Context, items []AIInput, onEv
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, python, "-u", filepath.Join(root, "tools", "app_caption_worker.py"))
-	configureAICommand(cmd)
-	cmd.Dir = root
-	cmd.Env = aiWorkerEnvironment(os.Environ())
-	cmd.Stdin = bytes.NewReader(payload)
-	// Model diagnostics can contain arbitrary provider text. Do not include them in UI errors.
-	cmd.Stderr = nil
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start local AI worker: %w", err)
-	}
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 4096), 2<<20)
-	var workerErr error
-	done := false
-	for scanner.Scan() {
-		var event AIEvent
-		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
-			workerErr = errors.New("invalid local AI worker response")
-			_ = cmd.Process.Kill()
-			break
-		}
-		switch event.Type {
-		case "error":
-			workerErr = errors.New(event.Message)
-		case "done":
-			done = true
-		case "progress", "result", "failure":
-			onEvent(event)
-		default:
-			workerErr = errors.New("unknown local AI worker event")
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		workerErr = errors.New("could not read local AI worker response")
-		_ = cmd.Process.Kill()
-	}
-	waitErr := cmd.Wait()
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-	if workerErr != nil {
-		return workerErr
-	}
-	if waitErr != nil || !done {
-		return errors.New("local AI worker stopped; check Python dependencies and cached Florence model")
-	}
-	return nil
+	return a.runResident(ctx, python, root, payload, onEvent)
 }

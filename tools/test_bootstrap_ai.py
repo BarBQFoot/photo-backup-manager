@@ -54,6 +54,7 @@ class BootstrapTests(unittest.TestCase):
     def test_model_download_reports_progress_with_mocked_download(self):
         def fake_download(*args, **kwargs):
             self.assertFalse(kwargs['token'])
+            self.assertEqual(kwargs['allow_patterns'], setup.MODEL_PATTERNS)
             with kwargs['tqdm_class'](total=2, desc='Fetching model files', unit='files') as bar:
                 bar.update(2)
             return 'mock-model'
@@ -84,6 +85,25 @@ class BootstrapTests(unittest.TestCase):
         self.assertFalse(report['model_ready'])
         self.assertIn('cache reference missing', report['model_error'])
         self.assertIn('models--florence-community--Florence-2-base-ft', report['model_path'])
+
+    def test_offline_check_uses_same_filter_as_download_without_docs(self):
+        versions = {name: '5.20.2' if name == 'transformers' else '1.0'
+                    for name in ('torch', 'torchvision', 'transformers', 'Pillow', 'safetensors', 'huggingface_hub')}
+        test_root = Path(__file__).resolve().parents[1] / 'results'
+        with tempfile.TemporaryDirectory(prefix='filtered-snapshot-', dir=test_root) as temporary:
+            folder = Path(temporary)
+            for name in setup.MODEL_FILES:
+                (folder / name).write_text('test', encoding='utf-8')
+            def snapshot(*args, **kwargs):
+                self.assertTrue(kwargs['local_files_only'])
+                if kwargs.get('allow_patterns') != setup.MODEL_PATTERNS:
+                    raise OSError('IncompleteSnapshotError: README.md and .gitattributes missing')
+                return folder
+            with patch.dict('sys.modules', {'huggingface_hub': types.SimpleNamespace(snapshot_download=snapshot)}), \
+                 patch.object(setup, 'version', side_effect=lambda name: versions[name]), \
+                 patch.object(setup, 'emit') as output:
+                setup.check()
+            self.assertTrue(output.call_args.kwargs['model_ready'])
 
 
 if __name__ == '__main__':
