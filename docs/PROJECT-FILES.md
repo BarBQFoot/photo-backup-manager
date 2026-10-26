@@ -59,7 +59,7 @@ SQLite เก็บข้อมูลประกอบรูปและคำ�
 | [`service/ai_process_windows.go`](../service/ai_process_windows.go) | ตั้งค่า subprocess บน Windows ให้ไม่มีหน้าต่างรบกวน และปิด process ลูกเมื่อจำเป็น                                       | `configureAICommand`, `terminateAICommand`                                              |
 | [`service/ai_process_other.go`](../service/ai_process_other.go)     | จัดการ subprocess สำหรับระบบที่ไม่ใช่ Windows เช่น macOS                                                                | ฟังก์ชันคู่เดียวกับไฟล์ Windows เลือกด้วย build constraint                              |
 | [`service/photo_preview.go`](../service/photo_preview.go)           | เปิดให้หน้าจอโหลดรูปจริงผ่าน `/photo-preview` โดยตรวจว่าเป็นไฟล์ที่เคยสแกนและยังเป็นไฟล์เดิม                            | `registerPreviews`, `PhotoPreviewMiddleware`                                            |
-| [`service/ai_analyzer.go`](../service/ai_analyzer.go)               | ประกาศ `AIAnalyzer` และ `AIError` ที่ส่วนหลักยังใช้ร่วมกัน ภายในไฟล์ยังมี `GeminiAnalyzer` สำหรับส่งรูปแบบเดิม          | ปัจจุบัน `NewDriveService` เลือก `NewHybridAnalyzer` จึงไม่ได้เลือกเส้นทางส่งรูปแบบเดิม |
+| [`service/ai_analyzer.go`](../service/ai_analyzer.go)               | ประกาศ `AIAnalyzer` และ `AIError` ที่ส่วนหลักใช้ร่วมกัน ไม่มีโค้ดส่งภาพไป Gemini แล้ว          | `NewDriveService` เลือก `NewHybridAnalyzer`: Florence อ่านภาพในเครื่อง แล้ว Gemini แปลข้อความ |
 
 เส้นทาง AI ปัจจุบันอ่านภาพบนเครื่องด้วย Florence และส่งเฉพาะข้อความไป Gemini เพื่อแปลไทย ไม่ได้ใช้ YOLO, SigLIP2 หรือ Places365 ในเส้นทางนี้
 

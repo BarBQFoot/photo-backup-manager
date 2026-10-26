@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,46 +20,14 @@ func (m mockAnalyzer) Analyze(context.Context, string, string) (string, error) {
 	return m.description, m.err
 }
 
-func TestReadImageRejectsUnsupportedAndOversizedFiles(t *testing.T) {
-	dir := t.TempDir()
-	unsupported := filepath.Join(dir, "note.txt")
-	if err := os.WriteFile(unsupported, []byte("not an image"), 0o600); err != nil {
-		t.Fatal(err)
+func TestNewDriveServiceUsesHybridAnalyzer(t *testing.T) {
+	service := NewDriveService()
+	if _, ok := service.aiAnalyzer.(*HybridAnalyzer); !ok {
+		t.Fatalf("default analyzer = %T, want Florence/text-translation pipeline", service.aiAnalyzer)
 	}
-	_, _, err := readImage(unsupported, "text/plain")
-	assertAIErrorCode(t, err, "UNSUPPORTED_IMAGE")
-
-	large := filepath.Join(dir, "large.jpg")
-	if err := os.WriteFile(large, make([]byte, maxImageSizeBytes+1), 0o600); err != nil {
-		t.Fatal(err)
+	if _, ok := service.aiAnalyzer.(BatchAIAnalyzer); !ok {
+		t.Fatal("default analyzer must support batch captioning and translation")
 	}
-	_, _, err = readImage(large, "image/jpeg")
-	assertAIErrorCode(t, err, "UNSUPPORTED_IMAGE")
-}
-
-func TestGeminiAnalyzerRequiresKey(t *testing.T) {
-	t.Setenv("GEMINI_API_KEY", "")
-	_, err := NewGeminiAnalyzerFromEnv().Analyze(context.Background(), "unused.jpg", "image/jpeg")
-	assertAIErrorCode(t, err, "AI_KEY_MISSING")
-}
-
-func TestGeminiAnalyzerRejectsInvalidResponse(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"candidates":[{"content":{"parts":[]}}]}`))
-	}))
-	defer server.Close()
-
-	analyzer := NewGeminiAnalyzerFromEnv()
-	analyzer.apiKey = "test-only"
-	analyzer.endpoint = server.URL
-	analyzer.httpClient = server.Client()
-	image := filepath.Join(t.TempDir(), "sample.jpg")
-	if err := os.WriteFile(image, []byte{0xff, 0xd8, 0xff, 0xd9}, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	_, err := analyzer.Analyze(context.Background(), image, "image/jpeg")
-	assertAIErrorCode(t, err, "AI_RESPONSE_INVALID")
 }
 
 func TestAnalyzeImageMockSavesDescriptionOnly(t *testing.T) {
@@ -107,14 +73,6 @@ func TestAnalyzeImageMockErrorMarksFailure(t *testing.T) {
 	assertAppErrorCode(t, err, "AI_UNAVAILABLE")
 	if store.record.Description != "old description" || store.record.AiStatus != repository.AIStatusFailed {
 		t.Fatalf("failed analysis changed description/status incorrectly: %#v", store.record)
-	}
-}
-
-func assertAIErrorCode(t *testing.T, err error, want string) {
-	t.Helper()
-	aiErr, ok := err.(*AIError)
-	if !ok || aiErr.Code != want {
-		t.Fatalf("error = %#v, want AI code %q", err, want)
 	}
 }
 
