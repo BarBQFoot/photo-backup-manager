@@ -29,9 +29,10 @@ class BootstrapTests(unittest.TestCase):
         return output.call_args.kwargs
 
     def test_preserves_existing_torch_when_other_packages_are_missing(self):
-        report = self.inspect({'torch': '2.13.0', 'torchvision': '0.28.0'})
+        report = self.inspect({'torch': '2.13.0+cu126', 'torchvision': '0.28.0'})
         self.assertTrue(report['python_ready'])
         self.assertTrue(report['torch_ready'])
+        self.assertEqual(report['torch_version'], '2.13.0+cu126')
         self.assertFalse(report['dependencies_ready'])
 
     def test_complete_model_fingerprint_changes_with_weight_file(self):

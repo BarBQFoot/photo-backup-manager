@@ -14,6 +14,8 @@ wails build -webview2 download -o photo-backup-manager-setup.exe
 
 - มี Python environment และไลบรารีที่ใช้ได้อยู่แล้ว จะนำมาใช้และข้ามการดาวน์โหลดส่วนนั้น
 - มี PyTorch แต่ขาดไลบรารีอื่น จะติดตั้งเฉพาะส่วนที่ขาด ไม่เปลี่ยน PyTorch เดิมเป็น CPU โดยอัตโนมัติ
+- Windows ตรวจรุ่น NVIDIA และ driver ก่อนเลือก PyTorch: RTX 50/Blackwell ใช้ CUDA 13.0 เมื่อ driver ตั้งแต่ 580.88 ส่วน NVIDIA รุ่นเดิมที่ driver ตั้งแต่ 560 ใช้ CUDA 12.6 การติดตั้งใหม่ตรึง torch 2.13.0 และ torchvision 0.28.0
+- ถ้า RTX 50 มี PyTorch ชุดเก่าที่ไม่รองรับ จะเปลี่ยนเฉพาะ torch/torchvision เป็นชุด CUDA 13.0 แล้วทดสอบอ่านภาพใหม่ ใช้ Florence และแคชคำบรรยายเดิมต่อได้ ชุด CUDA 12.8 ขึ้นไปที่รองรับ Blackwell อยู่แล้วจะถูกข้าม
 - มี Python ระบบแต่ยังขาดไลบรารี จะสร้าง environment ของแอปโดยใช้ interpreter เดิมและอนุญาตใช้แพ็กเกจระบบที่มีแล้ว ไม่ติดตั้งแพ็กเกจลง Python ระบบโดยตรง
 - ไม่มี Python จะดาวน์โหลด uv และ Python 3.13 ลงโฟลเดอร์ของแอป โดยตรวจ SHA256 ของ uv เทียบค่าที่ตรึงในซอร์สก่อนใช้
 - มีไฟล์ Florence อยู่ในแคช Hugging Face แล้ว จะไม่ดาวน์โหลดซ้ำ ตรวจไฟล์ที่จำเป็นและทำ fingerprint ตาม interpreter, เวอร์ชันไลบรารี และขนาด/เวลาแก้ไขของโมเดล

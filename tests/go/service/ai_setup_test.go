@@ -18,6 +18,78 @@ import (
 	"time"
 )
 
+func TestTorchIndexMatchesGPUAndDriver(t *testing.T) {
+	for _, tc := range []struct{ gpu, index string }{
+		{"NVIDIA GeForce RTX 5060 Laptop GPU, 616.92, 12.0", "cu130"},
+		{"NVIDIA GeForce RTX 5090, 580.88", "cu130"},
+		{"NVIDIA GeForce RTX 5060, 580.87, 12.0", "cpu"},
+		{"NVIDIA GeForce RTX 2050, 566.36, 8.6", "cu126"},
+		{"NVIDIA GeForce RTX 4060, 551.00, 8.9", "cpu"},
+		{"NVIDIA RTX PRO 6000, 616.92, 12.0", "cu130"},
+		{"NVIDIA GeForce RTX 2050, 616.92, 8.6\nNVIDIA GeForce RTX 5060, 616.92, 12.0", "cu130"},
+		{"", "cpu"},
+	} {
+		if got := torchIndexForNVIDIA(tc.gpu); got != "https://download.pytorch.org/whl/"+tc.index {
+			t.Errorf("%q: got %s", tc.gpu, got)
+		}
+	}
+	for _, version := range []string{"2.13.0+cu126", "2.13.0+cpu", "2.6.0+cu128", ""} {
+		if blackwellTorchSupported(version) {
+			t.Errorf("accepted %s", version)
+		}
+	}
+	for _, version := range []string{"2.7.0+cu128", "2.13.0+cu130", "2.13.0+cu132"} {
+		if !blackwellTorchSupported(version) {
+			t.Errorf("rejected %s", version)
+		}
+	}
+}
+
+func TestAISetupRepairsInstalledCUDAForBlackwellWithoutDownloadingModel(t *testing.T) {
+	cache := t.TempDir()
+	python := managedAIPython(cache)
+	if err := os.MkdirAll(filepath.Dir(python), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(filepath.Dir(filepath.Dir(python)), "pyvenv.cfg"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	report := setupReport{PythonReady: true, DependenciesReady: true, TorchReady: true, TorchVersion: "2.13.0+cu126", ModelReady: true, Signature: "existing"}
+	calls := []string{}
+	operations := aiSetupOperations{
+		discover: func(context.Context, string, string, string, func(AISetupStatus)) (string, setupReport) {
+			return python, report
+		},
+		torchIndex: func(context.Context) string { return "https://download.pytorch.org/whl/cu130" },
+		uv:         func(context.Context, string, func(AISetupStatus)) (string, error) { return "mock-uv", nil },
+		command: func(_ context.Context, _, _, phase, _ string, args []string, _ func(AISetupStatus)) (setupReport, error) {
+			calls = append(calls, phase)
+			if phase == "pytorch" {
+				joined := strings.Join(args, " ")
+				for _, required := range []string{python, "torch==2.13.0", "torchvision==0.28.0", "/cu130", "--reinstall-package"} {
+					if !strings.Contains(joined, required) {
+						t.Fatalf("missing %s: %s", required, joined)
+					}
+				}
+				report.TorchVersion = "2.13.0+cu130"
+				report.Signature = "repaired"
+			}
+			result := report
+			result.Verified = true
+			result.Device = "cuda"
+			return result, nil
+		},
+	}
+	for i := 0; i < 2; i++ {
+		if err := setupLocalAIWith(context.Background(), cache, cache, operations, func(AISetupStatus) {}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !reflect.DeepEqual(calls, []string{"pytorch", "checking", "verify"}) {
+		t.Fatalf("unexpected setup work: %v", calls)
+	}
+}
+
 func TestAISetupReusesReadyLibrariesAndModelThenSkipsVerification(t *testing.T) {
 	cache := t.TempDir()
 	python := filepath.Join(cache, "existing", "Scripts", "python.exe")

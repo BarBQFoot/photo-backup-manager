@@ -70,9 +70,12 @@ def main():
                       'Model loading and warmup excluded. Caption accuracy not measured.'}
     print(f'Device: {report["device"]}; images: {len(paths)}; output: {output}', flush=True)
     failed = set()
+    cleanup_failed = False
     for round_index in range(args.rounds):
         # Reverse the second round to reduce systematic first/last ordering effects.
         for size in sizes if round_index % 2 == 0 else reversed(sizes):
+            if cleanup_failed:
+                break
             if size in failed:
                 continue
             print(f'Round {round_index + 1}/{args.rounds}: batch {size}', flush=True)
@@ -98,18 +101,28 @@ def main():
                 failed.add(size)
                 record.update(status='failed', error=f'{type(error).__name__}: {error}')
             # Outside the exception handler so GPU tensors in tracebacks can be released.
-            clear()
+            try:
+                clear()
+            except Exception as error:
+                # CUDA can remain out of memory even during empty_cache(). Preserve
+                # the failed result and stop instead of losing the report to a traceback.
+                record['cleanup_error'] = f'{type(error).__name__}: {error}'
+                record['status'] = 'failed'
+                failed.add(size)
+                cleanup_failed = True
             report['results'].append(record)
             print(json.dumps(record, ensure_ascii=False), flush=True)
             (output / 'summary.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     report['median_seconds'] = {
         str(size): round(statistics.median(r['seconds'] for r in report['results']
                                          if r['batch_size'] == size and r['status'] == 'ok'), 3)
-        for size in sizes if size not in failed
+        for size in sizes if size not in failed and any(
+            r['batch_size'] == size and r['status'] == 'ok' for r in report['results'])
     }
     report['fastest_batch'] = (int(min(report['median_seconds'], key=report['median_seconds'].get))
                                if report['median_seconds'] else None)
     report['total_seconds'] = round(time.perf_counter() - started, 3)
+    report['stopped_after_cleanup_error'] = cleanup_failed
     (output / 'summary.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps({'fastest_batch': report['fastest_batch'], 'median_seconds': report['median_seconds'],
                       'summary': str(output / 'summary.json'), 'gemini_requests_sent': 0}, ensure_ascii=False), flush=True)

@@ -121,6 +121,7 @@ type setupReport struct {
 	PythonReady       bool   `json:"python_ready"`
 	DependenciesReady bool   `json:"dependencies_ready"`
 	TorchReady        bool   `json:"torch_ready"`
+	TorchVersion      string `json:"torch_version"`
 	ModelReady        bool   `json:"model_ready"`
 	Signature         string `json:"signature"`
 	Device            string `json:"device"`
@@ -151,6 +152,7 @@ func (w *setupOutput) line(line string) {
 		DependenciesReady bool   `json:"dependencies_ready"`
 		PythonReady       bool   `json:"python_ready"`
 		TorchReady        bool   `json:"torch_ready"`
+		TorchVersion      string `json:"torch_version"`
 		ModelReady        bool   `json:"model_ready"`
 		Signature         string `json:"signature"`
 		ModelPath         string `json:"model_path"`
@@ -159,7 +161,7 @@ func (w *setupOutput) line(line string) {
 	if json.Unmarshal([]byte(line), &event) == nil && event.Type != "" {
 		switch event.Type {
 		case "check":
-			w.report = setupReport{PythonReady: event.PythonReady, DependenciesReady: event.DependenciesReady, TorchReady: event.TorchReady, ModelReady: event.ModelReady, Signature: event.Signature, ModelPath: event.ModelPath, ModelError: event.ModelError}
+			w.report = setupReport{PythonReady: event.PythonReady, DependenciesReady: event.DependenciesReady, TorchReady: event.TorchReady, TorchVersion: event.TorchVersion, ModelReady: event.ModelReady, Signature: event.Signature, ModelPath: event.ModelPath, ModelError: event.ModelError}
 		case "verified":
 			w.report.Device, w.report.Verified = event.Device, true
 		case "error":
@@ -236,18 +238,29 @@ func setupLocalAI(ctx context.Context, update func(AISetupStatus)) error {
 	if err != nil {
 		return err
 	}
-	return setupLocalAIWith(ctx, cache, root, aiSetupOperations{discover: discoverSetupPython, uv: prepareUV, command: runSetupProcess}, update)
+	return setupLocalAIWith(ctx, cache, root, aiSetupOperations{discover: discoverSetupPython, uv: prepareUV, command: runSetupProcess, torchIndex: setupTorchIndex}, update)
 }
 
 type aiSetupOperations struct {
-	discover func(context.Context, string, string, string, func(AISetupStatus)) (string, setupReport)
-	uv       func(context.Context, string, func(AISetupStatus)) (string, error)
-	command  func(context.Context, string, string, string, string, []string, func(AISetupStatus)) (setupReport, error)
+	discover   func(context.Context, string, string, string, func(AISetupStatus)) (string, setupReport)
+	uv         func(context.Context, string, func(AISetupStatus)) (string, error)
+	command    func(context.Context, string, string, string, string, []string, func(AISetupStatus)) (setupReport, error)
+	torchIndex func(context.Context) string
 }
 
 func setupLocalAIWith(ctx context.Context, cache, root string, operations aiSetupOperations, update func(AISetupStatus)) error {
 	script := filepath.Join(root, "tools", "bootstrap_ai.py")
 	python, report := operations.discover(ctx, cache, root, script, update)
+	index := ""
+	if operations.torchIndex != nil {
+		index = operations.torchIndex(ctx)
+	}
+	// Installed packages alone do not mean that their CUDA kernels support this GPU.
+	repairTorch := strings.HasSuffix(index, "/cu130") && report.TorchReady && !blackwellTorchSupported(report.TorchVersion)
+	if repairTorch {
+		report.TorchReady = false
+		update(AISetupStatus{Phase: "pytorch", Detail: "พบการ์ดจอรุ่นใหม่ กำลังเปลี่ยน PyTorch ให้รองรับ CUDA 13.0"})
+	}
 	skipped := []string{}
 	if python != "" {
 		skipped = append(skipped, "python")
@@ -265,7 +278,7 @@ func setupLocalAIWith(ctx context.Context, cache, root string, operations aiSetu
 	if python == "" && strings.TrimSpace(os.Getenv("PHOTO_AI_PYTHON")) != "" {
 		return errors.New("PHOTO_AI_PYTHON ไม่ใช่ Python 3.11–3.13 ที่ใช้งานได้ กรุณาแก้หรือลบค่านี้ก่อนลองใหม่")
 	}
-	if !report.DependenciesReady {
+	if !report.DependenciesReady || !report.TorchReady {
 		uv, err := operations.uv(ctx, cache, update)
 		if err != nil {
 			return err
@@ -285,28 +298,37 @@ func setupLocalAIWith(ctx context.Context, cache, root string, operations aiSetu
 			}
 		}
 		if !report.TorchReady {
-			update(AISetupStatus{Phase: "pytorch", Detail: "กำลังดาวน์โหลดและติดตั้ง PyTorch"})
+			detail := "กำลังดาวน์โหลดและติดตั้ง PyTorch"
+			if strings.HasSuffix(index, "/cu130") {
+				detail = "กำลังติดตั้ง PyTorch CUDA 13.0 สำหรับการ์ดจอรุ่นใหม่"
+			}
+			update(AISetupStatus{Phase: "pytorch", Detail: detail})
 			torchArgs := []string{"pip", "install", "--python", python, "torch", "torchvision"}
-			if runtime.GOOS == "windows" {
-				index := "https://download.pytorch.org/whl/cpu"
-				if runtime.GOARCH == "amd64" && hasNVIDIADriver(ctx) {
-					index = "https://download.pytorch.org/whl/cu126"
-				}
+			if index != "" {
+				torchArgs = []string{"pip", "install", "--python", python, "torch==2.13.0", "torchvision==0.28.0"}
 				torchArgs = append(torchArgs, "--default-index", index)
+			}
+			if repairTorch {
+				torchArgs = append(torchArgs, "--reinstall-package", "torch", "--reinstall-package", "torchvision")
 			}
 			if _, err = operations.command(ctx, cache, root, "pytorch", uv, torchArgs, update); err != nil {
 				return err
 			}
 		}
-		update(AISetupStatus{Phase: "packages", Detail: "กำลังติดตั้งไลบรารีสำหรับ Florence"})
-		if _, err = operations.command(ctx, cache, root, "packages", uv,
-			[]string{"pip", "install", "--python", python, "--default-index", "https://pypi.org/simple",
-				"transformers>=5,<6", "Pillow", "safetensors", "huggingface_hub"}, update); err != nil {
-			return err
+		if !report.DependenciesReady {
+			update(AISetupStatus{Phase: "packages", Detail: "กำลังติดตั้งไลบรารีสำหรับ Florence"})
+			if _, err = operations.command(ctx, cache, root, "packages", uv,
+				[]string{"pip", "install", "--python", python, "--default-index", "https://pypi.org/simple",
+					"transformers>=5,<6", "Pillow", "safetensors", "huggingface_hub"}, update); err != nil {
+				return err
+			}
 		}
 		report, err = operations.command(ctx, cache, root, "checking", python, []string{"-u", script, "check"}, update)
-		if err != nil || !report.DependenciesReady {
+		if err != nil || !report.DependenciesReady || !report.TorchReady {
 			return errors.New("ติดตั้งไลบรารียังไม่ครบ กรุณาตรวจอินเทอร์เน็ตและพื้นที่ว่างแล้วลองใหม่")
+		}
+		if strings.HasSuffix(index, "/cu130") && !blackwellTorchSupported(report.TorchVersion) {
+			return errors.New("PyTorch ยังไม่รองรับการ์ดจอรุ่นนี้หลังติดตั้ง CUDA 13.0 กรุณาลองใหม่และส่งข้อความผิดพลาด")
 		}
 	}
 	if !report.ModelReady {
@@ -323,7 +345,10 @@ func setupLocalAIWith(ctx context.Context, cache, root string, operations aiSetu
 			return fmt.Errorf("ตรวจไฟล์ Florence หลังดาวน์โหลดไม่ผ่าน\n%s\nตำแหน่งแคช: %s", report.ModelError, report.ModelPath)
 		}
 	}
-	// A fingerprint changes if the Python, package versions or cached model files change.
+	// Recheck when the selected CUDA runtime changes, as well as Python, packages or model files.
+	if report.Signature != "" {
+		report.Signature += ":" + index
+	}
 	hash := sha256.Sum256([]byte(python))
 	marker := filepath.Join(cache, "verified-"+hex.EncodeToString(hash[:])[:20]+".json")
 	var saved setupReport
@@ -445,16 +470,62 @@ func writeSetupMarker(path string, report any) error {
 	return os.Rename(file.Name(), path)
 }
 
-func hasNVIDIADriver(ctx context.Context) bool {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+func setupTorchIndex(ctx context.Context) string {
+	if runtime.GOOS != "windows" {
+		return ""
+	}
+	index := "https://download.pytorch.org/whl/cpu"
+	if runtime.GOARCH != "amd64" {
+		return index
+	}
+	probe, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, "nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader")
+	command := exec.CommandContext(probe, "nvidia-smi", "--query-gpu=name,driver_version,compute_cap", "--format=csv,noheader")
 	configureAICommand(command)
 	output, err := command.Output()
-	if err != nil {
-		return false
+	if err == nil {
+		return torchIndexForNVIDIA(string(output))
 	}
-	var major int
-	_, err = fmt.Sscanf(strings.TrimSpace(string(output)), "%d", &major)
-	return err == nil && major >= 560
+	// Older drivers may not expose compute_cap; the name still identifies RTX 50.
+	command = exec.CommandContext(probe, "nvidia-smi", "--query-gpu=name,driver_version", "--format=csv,noheader")
+	configureAICommand(command)
+	if output, err = command.Output(); err == nil {
+		return torchIndexForNVIDIA(string(output))
+	}
+	return index
+}
+
+func torchIndexForNVIDIA(output string) string {
+	index := "https://download.pytorch.org/whl/cpu"
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Split(line, ",")
+		if len(fields) < 2 {
+			continue
+		}
+		var driver, driverMinor int
+		fmt.Sscanf(strings.TrimSpace(fields[1]), "%d.%d", &driver, &driverMinor)
+		var capability float64
+		if len(fields) > 2 {
+			fmt.Sscanf(strings.TrimSpace(fields[2]), "%f", &capability)
+		}
+		if capability >= 10 || strings.Contains(strings.ToUpper(fields[0]), "RTX 50") {
+			// CUDA 13.0 requires an R580 or newer driver. Verify performs a real model run.
+			if driver > 580 || driver == 580 && driverMinor >= 88 {
+				return "https://download.pytorch.org/whl/cu130"
+			}
+			return "https://download.pytorch.org/whl/cpu"
+		}
+		if driver >= 560 {
+			index = "https://download.pytorch.org/whl/cu126"
+		}
+	}
+	return index
+}
+
+func blackwellTorchSupported(version string) bool {
+	var major, minor, cuda int
+	fmt.Sscanf(version, "%d.%d", &major, &minor)
+	_, suffix, _ := strings.Cut(version, "+cu")
+	fmt.Sscanf(suffix, "%d", &cuda)
+	return (major > 2 || major == 2 && minor >= 7) && cuda >= 128
 }

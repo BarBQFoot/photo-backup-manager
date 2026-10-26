@@ -42,7 +42,8 @@ def check():
             missing.append(package)
     torch_ready = all(name in versions for name in ('torch', 'torchvision'))
     if missing or int(versions['transformers'].split('.')[0]) != 5:
-        emit(type='check', python_ready=True, dependencies_ready=False, model_ready=False, torch_ready=torch_ready)
+        emit(type='check', python_ready=True, dependencies_ready=False, model_ready=False,
+             torch_ready=torch_ready, torch_version=versions.get('torch', ''))
         return
     from huggingface_hub import snapshot_download
     ready = False
@@ -64,7 +65,7 @@ def check():
         signature = hashlib.sha256(json.dumps([sys.executable, sys.version, versions, str(folder), files],
                                              sort_keys=True).encode()).hexdigest()
     emit(type='check', python_ready=True, dependencies_ready=True, torch_ready=True, model_ready=ready,
-         signature=signature, model_path=model_path, model_error=model_error)
+         torch_version=versions.get('torch', ''), signature=signature, model_path=model_path, model_error=model_error)
 
 
 def download():
